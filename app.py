@@ -213,9 +213,21 @@ def get_data_manager() -> S3DataManager:
 
 
 @st.cache_data(show_spinner="Loading cohort metadata from cloud storage...")
-def get_cohort_dataframe() -> pd.DataFrame:
+def get_base_cohort_dataframe() -> pd.DataFrame:
     dm = get_data_manager()
-    return dm.load_cohort_metadata()
+    return dm.load_raw_cohort_metadata()
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def get_curations_dict() -> Dict[str, Dict[str, Any]]:
+    dm = get_data_manager()
+    return dm.load_curations_dict()
+
+
+def get_cohort_dataframe() -> pd.DataFrame:
+    df_base = get_base_cohort_dataframe()
+    curations_dict = get_curations_dict()
+    return S3DataManager.merge_curations(df_base, curations_dict)
 
 
 @st.cache_resource(show_spinner=False, max_entries=8)
@@ -365,9 +377,9 @@ with st.sidebar:
 
     df_filtered = df_cohort.copy()
     if filter_choice == "Unreviewed Only":
-        df_filtered = df_filtered[df_filtered["cur_decision"] == "Unreviewed"]
+        df_filtered = df_filtered[df_filtered["cur_decision"].astype(str).str.strip() == "Unreviewed"]
     elif filter_choice == "Reviewed Only":
-        df_filtered = df_filtered[df_filtered["cur_decision"] != "Unreviewed"]
+        df_filtered = df_filtered[df_filtered["cur_decision"].astype(str).str.strip() != "Unreviewed"]
     elif filter_choice == "High Discrepancy (|UKD - Kei| > 15)":
         mask = (df_filtered["our_abs_th"].notna()) & (df_filtered["kei_abs_th"].notna())
         diff = np.abs(df_filtered["our_abs_th"] - df_filtered["kei_abs_th"])
@@ -389,8 +401,11 @@ with st.sidebar:
 
     # Core Selector
     def format_core_label(cid: str) -> str:
-        row = df_cohort[df_cohort["core_id"] == cid].iloc[0]
-        cur_icon = "✅" if row["cur_decision"] != "Unreviewed" else "⏳"
+        matching = df_cohort[df_cohort["core_id"] == cid]
+        if matching.empty:
+            return str(cid)
+        row = matching.iloc[0]
+        cur_icon = "✅" if str(row.get("cur_decision", "Unreviewed")).strip() != "Unreviewed" else "⏳"
         return f"{cur_icon} {cid} | IHC: {row['ihc_str']} | {row['diagnosis']}"
 
     def on_core_dropdown_change():
@@ -976,8 +991,8 @@ with st.container():
             notes=review_notes,
         )
 
-        # Clear cached cohort dataframe so new curation is merged immediately
-        get_cohort_dataframe.clear()
+        # Clear cached curations so new curation is merged immediately
+        get_curations_dict.clear()
 
         # Cache the feedback message across rerun
         if final_abs is not None:
@@ -998,7 +1013,7 @@ with st.container():
 # ------------------------------------------------------------------------------
 # Curated Progress Table
 # ------------------------------------------------------------------------------
-curations_dict = dm.load_curations_dict()
+curations_dict = get_curations_dict()
 if curations_dict:
     df_cur = pd.DataFrame.from_dict(curations_dict, orient="index").reset_index()
     if "index" in df_cur.columns:

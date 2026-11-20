@@ -163,6 +163,63 @@ class TestS3ThresholdEngine(unittest.TestCase):
         self.assertEqual(cur_csv.iloc[0]["final_abs_th"], 25.0)
         self.assertNotIn("reviewer", cur_csv.columns)
 
+    def test_merge_curations_and_filter_status(self):
+        # Create metadata with 2 cores: mock-1 and mock-2
+        df_meta = pd.DataFrame([
+            {"core_id": "mock-1", "diagnosis": "Dx1", "subtype": "S1", "ihc_str": "10%", "our_abs_th": 10.0, "kei_abs_th": 15.0},
+            {"core_id": "mock-2", "diagnosis": "Dx2", "subtype": "S2", "ihc_str": "50%", "our_abs_th": 20.0, "kei_abs_th": 25.0},
+        ])
+        df_meta.to_csv(self.meta_dir / "cohort_metadata.csv", index=False)
+
+        cfg = {
+            "s3": {
+                "use_s3": False,
+                "local_data_dir": str(self.test_dir),
+            }
+        }
+        dm = S3DataManager(cfg)
+
+        # Before any curation: both cores are Unreviewed
+        df_init = dm.load_cohort_metadata()
+        self.assertEqual(df_init.loc[df_init["core_id"] == "mock-1", "cur_decision"].iloc[0], "Unreviewed")
+        self.assertEqual(df_init.loc[df_init["core_id"] == "mock-2", "cur_decision"].iloc[0], "Unreviewed")
+
+        # Save decision for mock-1
+        dm.save_curation_decision(
+            core_id="mock-1",
+            decision_type="Accept UKD",
+            abs_th=10.0,
+            perc_pos_th=0.5,
+            notes="Agreed with UKD",
+        )
+
+        # Reload curations and cohort metadata
+        cur_dict = dm.load_curations_dict()
+        self.assertIn("mock-1", cur_dict)
+        self.assertNotIn("mock-2", cur_dict)
+
+        df_updated = dm.load_cohort_metadata()
+        row_1 = df_updated[df_updated["core_id"] == "mock-1"].iloc[0]
+        row_2 = df_updated[df_updated["core_id"] == "mock-2"].iloc[0]
+
+        self.assertEqual(row_1["cur_decision"], "Accept UKD")
+        self.assertEqual(row_1["cur_abs_th"], 10.0)
+        self.assertEqual(row_2["cur_decision"], "Unreviewed")
+        self.assertTrue(pd.isna(row_2["cur_abs_th"]))
+
+        # Check filter logic
+        df_unreviewed = df_updated[df_updated["cur_decision"].astype(str).str.strip() == "Unreviewed"]
+        df_reviewed = df_updated[df_updated["cur_decision"].astype(str).str.strip() != "Unreviewed"]
+
+        self.assertEqual(df_unreviewed["core_id"].tolist(), ["mock-2"])
+        self.assertEqual(df_reviewed["core_id"].tolist(), ["mock-1"])
+
+        # Check label icon logic
+        icon_1 = "✅" if str(row_1["cur_decision"]).strip() != "Unreviewed" else "⏳"
+        icon_2 = "✅" if str(row_2["cur_decision"]).strip() != "Unreviewed" else "⏳"
+        self.assertEqual(icon_1, "✅")
+        self.assertEqual(icon_2, "⏳")
+
 
 if __name__ == "__main__":
     unittest.main()

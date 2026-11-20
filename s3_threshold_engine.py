@@ -240,9 +240,19 @@ class S3DataManager:
                 ak = self._lookup_secret("aws_access_key_id", "access_key_id", "key_id", "AWS_ACCESS_KEY_ID")
                 sk = self._lookup_secret("aws_secret_access_key", "secret_access_key", "secret_key", "AWS_SECRET_ACCESS_KEY")
                 if ak and sk:
-                    self.fs = s3fs.S3FileSystem(key=ak, secret=sk, client_kwargs={"region_name": self.region})
+                    self.fs = s3fs.S3FileSystem(
+                        key=ak,
+                        secret=sk,
+                        client_kwargs={"region_name": self.region},
+                        default_cache_type="none",
+                        use_listings_cache=False,
+                    )
                 else:
-                    self.fs = s3fs.S3FileSystem(client_kwargs={"region_name": self.region})
+                    self.fs = s3fs.S3FileSystem(
+                        client_kwargs={"region_name": self.region},
+                        default_cache_type="none",
+                        use_listings_cache=False,
+                    )
             except Exception as e:
                 self.s3_init_error = str(e)
                 print(f"Warning: Failed to initialize s3fs ({e}), falling back to local files.")
@@ -273,15 +283,16 @@ class S3DataManager:
         """Backward compatibility helper for single key."""
         return self._lookup_secret(key)
 
-    def load_cohort_metadata(self) -> pd.DataFrame:
-        """Load cohort metadata CSV from S3 or local fallback."""
+    def load_raw_cohort_metadata(self) -> pd.DataFrame:
+        """Load raw cohort metadata CSV without merged curations from S3 or local fallback."""
         s3_error = None
         if self.use_s3 and self.fs:
             s3_path = f"{self.bucket}/{self.prefix}/metadata/cohort_metadata.csv"
             try:
                 with self.fs.open(s3_path, "rb") as f:
                     df = pd.read_csv(f)
-                    return self._merge_existing_curations(df)
+                    df["core_id"] = df["core_id"].astype(str).str.strip()
+                    return df
             except Exception as e:
                 s3_error = str(e)
                 print(f"Warning: S3 read failed ({e}), checking local directory.")
@@ -291,7 +302,8 @@ class S3DataManager:
         local_meta = self.local_dir / "metadata" / "cohort_metadata.csv"
         if local_meta.is_file():
             df = pd.read_csv(local_meta)
-            return self._merge_existing_curations(df)
+            df["core_id"] = df["core_id"].astype(str).str.strip()
+            return df
 
         detail = f" (S3 Error: {s3_error})" if s3_error else ""
         raise FileNotFoundError(
@@ -299,30 +311,47 @@ class S3DataManager:
             f"and local path {local_meta}."
         )
 
-    def _merge_existing_curations(self, df_cohort: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def merge_curations(df_cohort: pd.DataFrame, curations_dict: Dict[str, Dict[str, Any]]) -> pd.DataFrame:
         """Merge saved curation decisions into cohort dataframe."""
-        curations_dict = self.load_curations_dict()
+        df = df_cohort.copy()
+        df["core_id"] = df["core_id"].astype(str).str.strip()
+
+        # Clean string keys in curations_dict
+        clean_cur = {str(k).strip(): v for k, v in curations_dict.items()}
+
         decisions = []
         cur_abs_list = []
         cur_notes_list = []
 
-        for _, row in df_cohort.iterrows():
-            cid = str(row["core_id"])
-            if cid in curations_dict:
-                cinfo = curations_dict[cid]
-                decisions.append(cinfo.get("decision_type", "Reviewed"))
+        for _, row in df.iterrows():
+            cid = str(row["core_id"]).strip()
+            if cid in clean_cur:
+                cinfo = clean_cur[cid]
+                dec_val = str(cinfo.get("decision_type", "Reviewed")).strip()
+                decisions.append(dec_val if dec_val else "Reviewed")
                 cur_abs_list.append(cinfo.get("final_abs_th"))
-                cur_notes_list.append(cinfo.get("notes", ""))
+                cur_notes_list.append(str(cinfo.get("notes", "")).strip())
             else:
                 decisions.append("Unreviewed")
                 cur_abs_list.append(None)
                 cur_notes_list.append("")
 
-        df_cohort = df_cohort.copy()
-        df_cohort["cur_decision"] = decisions
-        df_cohort["cur_abs_th"] = cur_abs_list
-        df_cohort["cur_notes"] = cur_notes_list
-        return df_cohort
+        df["cur_decision"] = decisions
+        df["cur_abs_th"] = cur_abs_list
+        df["cur_notes"] = cur_notes_list
+        return df
+
+    def _merge_existing_curations(self, df_cohort: pd.DataFrame) -> pd.DataFrame:
+        """Backward-compatible helper for merging curations."""
+        curations_dict = self.load_curations_dict()
+        return self.merge_curations(df_cohort, curations_dict)
+
+    def load_cohort_metadata(self) -> pd.DataFrame:
+        """Load cohort metadata CSV with merged curations."""
+        df_raw = self.load_raw_cohort_metadata()
+        curations_dict = self.load_curations_dict()
+        return self.merge_curations(df_raw, curations_dict)
 
     def load_core_bundle(self, core_id: str) -> CoreBundle:
         """Load and unpack .npz core bundle from S3 or local directory."""
@@ -345,26 +374,35 @@ class S3DataManager:
     def load_curations_dict(self) -> Dict[str, Dict[str, Any]]:
         """Load all curated decisions into a dictionary keyed by core_id."""
         if self.use_s3 and self.fs:
-            s3_path = f"{self.bucket}/{self.prefix}/curations/curated_pd1_thresholds.csv"
             try:
-                if self.fs.exists(s3_path):
-                    with self.fs.open(s3_path, "rb") as f:
-                        df = pd.read_csv(f)
-                        if "reviewer" in df.columns:
-                            df = df.drop(columns=["reviewer"])
-                        return df.set_index("core_id").to_dict(orient="index")
+                self.fs.invalidate_cache()
             except Exception:
                 pass
+            s3_path = f"{self.bucket}/{self.prefix}/curations/curated_pd1_thresholds.csv"
+            try:
+                with self.fs.open(s3_path, "rb") as f:
+                    df = pd.read_csv(f)
+                if "core_id" in df.columns and len(df) > 0:
+                    df["core_id"] = df["core_id"].astype(str).str.strip()
+                    if "reviewer" in df.columns:
+                        df = df.drop(columns=["reviewer"])
+                    return {str(k).strip(): v for k, v in df.set_index("core_id").to_dict(orient="index").items()}
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                print(f"Warning: Failed to read S3 curations ({e})")
 
         local_cur = self.local_dir / "curations" / "curated_pd1_thresholds.csv"
         if local_cur.is_file():
             try:
                 df = pd.read_csv(local_cur)
-                if "reviewer" in df.columns:
-                    df = df.drop(columns=["reviewer"])
-                return df.set_index("core_id").to_dict(orient="index")
-            except Exception:
-                pass
+                if "core_id" in df.columns and len(df) > 0:
+                    df["core_id"] = df["core_id"].astype(str).str.strip()
+                    if "reviewer" in df.columns:
+                        df = df.drop(columns=["reviewer"])
+                    return {str(k).strip(): v for k, v in df.set_index("core_id").to_dict(orient="index").items()}
+            except Exception as e:
+                print(f"Warning: Failed to read local curations ({e})")
 
         return {}
 
@@ -377,9 +415,10 @@ class S3DataManager:
         notes: str,
     ) -> str:
         """Save curation decision directly to S3 or local CSV without reviewer column."""
+        cid_str = str(core_id).strip()
         record = {
-            "core_id": str(core_id),
-            "decision_type": str(decision_type),
+            "core_id": cid_str,
+            "decision_type": str(decision_type).strip(),
             "final_abs_th": float(abs_th) if abs_th is not None else np.nan,
             "final_perc_pos_th": float(perc_pos_th),
             "notes": str(notes).strip(),
@@ -390,23 +429,34 @@ class S3DataManager:
         if self.use_s3 and self.fs:
             s3_path = f"{self.bucket}/{self.prefix}/curations/curated_pd1_thresholds.csv"
             try:
-                if self.fs.exists(s3_path):
+                try:
+                    self.fs.invalidate_cache()
+                except Exception:
+                    pass
+
+                try:
                     with self.fs.open(s3_path, "rb") as f:
                         df = pd.read_csv(f)
                     if "reviewer" in df.columns:
                         df = df.drop(columns=["reviewer"])
-                    df["core_id"] = df["core_id"].astype(str)
-                    df = df[df["core_id"] != str(core_id)]
+                    df["core_id"] = df["core_id"].astype(str).str.strip()
+                    df = df[df["core_id"] != cid_str]
                     df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
-                else:
+                except (FileNotFoundError, Exception):
                     df = pd.DataFrame([record])
 
                 if "reviewer" in df.columns:
                     df = df.drop(columns=["reviewer"])
 
+                df["core_id"] = df["core_id"].astype(str).str.strip()
                 df = df.sort_values("core_id", key=lambda col: [natural_sort_key(x) for x in col]).reset_index(drop=True)
                 with self.fs.open(s3_path, "wb") as f:
                     df.to_csv(f, index=False)
+
+                try:
+                    self.fs.invalidate_cache()
+                except Exception:
+                    pass
                 return f"s3://{s3_path}"
             except Exception as e:
                 print(f"Warning: S3 save failed ({e}), saving locally.")
@@ -417,18 +467,22 @@ class S3DataManager:
         local_csv = local_cur_dir / "curated_pd1_thresholds.csv"
 
         if local_csv.is_file():
-            df = pd.read_csv(local_csv)
-            if "reviewer" in df.columns:
-                df = df.drop(columns=["reviewer"])
-            df["core_id"] = df["core_id"].astype(str)
-            df = df[df["core_id"] != str(core_id)]
-            df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+            try:
+                df = pd.read_csv(local_csv)
+                if "reviewer" in df.columns:
+                    df = df.drop(columns=["reviewer"])
+                df["core_id"] = df["core_id"].astype(str).str.strip()
+                df = df[df["core_id"] != cid_str]
+                df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+            except Exception:
+                df = pd.DataFrame([record])
         else:
             df = pd.DataFrame([record])
 
         if "reviewer" in df.columns:
             df = df.drop(columns=["reviewer"])
 
+        df["core_id"] = df["core_id"].astype(str).str.strip()
         df = df.sort_values("core_id", key=lambda col: [natural_sort_key(x) for x in col]).reset_index(drop=True)
         df.to_csv(local_csv, index=False)
         return str(local_csv)
