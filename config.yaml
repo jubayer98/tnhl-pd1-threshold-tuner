@@ -17,7 +17,7 @@ local_source:
 
 # AWS S3 Storage settings (overridable via environment variables or st.secrets)
 s3:
-  bucket: ""                       # e.g., "tnhl-codex-pd1" (set in st.secrets or env var S3_BUCKET)
+  bucket: "tnhl-pd1-tuner-data"    # e.g., "tnhl-pd1-tuner-data" (set in st.secrets or env var S3_BUCKET)
   prefix: "tnhl_pd1_tuner"         # Prefix path within the bucket
   region: "eu-central-1"           # AWS region (or us-east-1)
   local_data_dir: "../aws_prepared_data"  # Fallback local directory if running locally or before upload

@@ -209,9 +209,23 @@ class S3DataManager:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         self.s3_cfg = cfg.get("s3", {})
-        self.bucket = self._get_secret("s3_bucket") or os.environ.get("S3_BUCKET") or self.s3_cfg.get("bucket", "")
-        self.prefix = self._get_secret("s3_prefix") or os.environ.get("S3_PREFIX") or self.s3_cfg.get("prefix", "tnhl_pd1_tuner")
-        self.region = self._get_secret("region_name") or os.environ.get("AWS_DEFAULT_REGION") or self.s3_cfg.get("region", "eu-central-1")
+
+        # Check if caller explicitly disabled S3 by setting bucket=""
+        if "bucket" in self.s3_cfg and self.s3_cfg["bucket"] == "":
+            self.bucket = ""
+        else:
+            self.bucket = (
+                self._lookup_secret("bucket_name", "bucket", "s3_bucket", "aws_bucket")
+                or self.s3_cfg.get("bucket", "")
+            )
+        self.prefix = (
+            self._lookup_secret("s3_prefix", "prefix")
+            or self.s3_cfg.get("prefix", "tnhl_pd1_tuner")
+        )
+        self.region = (
+            self._lookup_secret("region_name", "region", "aws_region", "AWS_DEFAULT_REGION")
+            or self.s3_cfg.get("region", "eu-central-1")
+        )
 
         # Local directory fallback
         script_dir = Path(__file__).resolve().parent
@@ -220,34 +234,50 @@ class S3DataManager:
 
         self.use_s3 = bool(self.bucket)
         self.fs = None
+        self.s3_init_error = None
 
         if self.use_s3:
             try:
                 import s3fs
-                ak = self._get_secret("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
-                sk = self._get_secret("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+                ak = self._lookup_secret("aws_access_key_id", "access_key_id", "key_id", "AWS_ACCESS_KEY_ID")
+                sk = self._lookup_secret("aws_secret_access_key", "secret_access_key", "secret_key", "AWS_SECRET_ACCESS_KEY")
                 if ak and sk:
                     self.fs = s3fs.S3FileSystem(key=ak, secret=sk, client_kwargs={"region_name": self.region})
                 else:
                     self.fs = s3fs.S3FileSystem(client_kwargs={"region_name": self.region})
             except Exception as e:
+                self.s3_init_error = str(e)
                 print(f"Warning: Failed to initialize s3fs ({e}), falling back to local files.")
                 self.use_s3 = False
 
-    def _get_secret(self, key: str) -> Optional[str]:
-        """Fetch secret from st.secrets if running inside Streamlit."""
-        if st is not None:
-            try:
-                if hasattr(st, "secrets") and "aws" in st.secrets:
-                    return str(st.secrets["aws"].get(key, ""))
-                if hasattr(st, "secrets") and key in st.secrets:
-                    return str(st.secrets.get(key, ""))
-            except Exception:
-                pass
+    def _lookup_secret(self, *keys: str) -> Optional[str]:
+        """Fetch secret from st.secrets or os.environ by checking multiple alias keys."""
+        for k in keys:
+            v = os.environ.get(k) or os.environ.get(k.upper())
+            if v:
+                return str(v).strip()
+            if st is not None:
+                try:
+                    if hasattr(st, "secrets"):
+                        if "aws" in st.secrets and k in st.secrets["aws"]:
+                            val = st.secrets["aws"].get(k)
+                            if val:
+                                return str(val).strip()
+                        if k in st.secrets:
+                            val = st.secrets.get(k)
+                            if val:
+                                return str(val).strip()
+                except Exception:
+                    pass
         return None
+
+    def _get_secret(self, key: str) -> Optional[str]:
+        """Backward compatibility helper for single key."""
+        return self._lookup_secret(key)
 
     def load_cohort_metadata(self) -> pd.DataFrame:
         """Load cohort metadata CSV from S3 or local fallback."""
+        s3_error = None
         if self.use_s3 and self.fs:
             s3_path = f"{self.bucket}/{self.prefix}/metadata/cohort_metadata.csv"
             try:
@@ -255,15 +285,19 @@ class S3DataManager:
                     df = pd.read_csv(f)
                     return self._merge_existing_curations(df)
             except Exception as e:
+                s3_error = str(e)
                 print(f"Warning: S3 read failed ({e}), checking local directory.")
+        elif self.s3_init_error:
+            s3_error = f"s3fs initialization failed: {self.s3_init_error}"
 
         local_meta = self.local_dir / "metadata" / "cohort_metadata.csv"
         if local_meta.is_file():
             df = pd.read_csv(local_meta)
             return self._merge_existing_curations(df)
 
+        detail = f" (S3 Error: {s3_error})" if s3_error else ""
         raise FileNotFoundError(
-            f"Cohort metadata not found. Checked s3://{self.bucket}/{self.prefix}/metadata/cohort_metadata.csv "
+            f"Cohort metadata not found. Checked s3://{self.bucket}/{self.prefix}/metadata/cohort_metadata.csv{detail} "
             f"and local path {local_meta}."
         )
 
