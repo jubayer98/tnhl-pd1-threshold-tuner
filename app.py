@@ -73,8 +73,8 @@ st.markdown(
         background: var(--background-color) !important;
         border: 1px solid rgba(128, 128, 128, 0.22) !important;
         border-radius: 6px;
-        padding: 6px 14px;
-        min-width: 130px;
+        padding: 8px 18px;
+        min-width: 150px;
     }
     .stat-chip-core {
         border-left: 3.5px solid #00B4D8 !important;
@@ -114,7 +114,7 @@ st.markdown(
     .metric-card {
         background-color: var(--secondary-background-color) !important;
         border-radius: 6px;
-        padding: 8px 14px !important;
+        padding: 10px 18px !important;
         border: 1px solid rgba(128, 128, 128, 0.25) !important;
         margin-bottom: 12px !important;
         color: var(--text-color) !important;
@@ -142,26 +142,38 @@ st.markdown(
         color: var(--text-color) !important;
     }
 
-    /* Plotly Panel Titles & Annotations (Adapts to Light & Dark Mode) */
-    .stPlotlyChart text.annotation-text,
-    .stPlotlyChart text.annotation-text tspan,
-    .stPlotlyChart g.annotation-text-g text,
-    .panel-annot-title {
+    /* Universally ensure ALL Plotly SVG text adapts to Light & Dark Mode */
+    .stPlotlyChart {
+        color: var(--text-color) !important;
+    }
+    .stPlotlyChart text,
+    .stPlotlyChart tspan {
         fill: var(--text-color) !important;
         color: var(--text-color) !important;
-        font-size: 13.5px !important;
-        font-weight: 700 !important;
     }
 
-    /* Plotly Response Curve Ticks, Titles & Legends (Adapts to Light & Dark Mode) */
-    .stPlotlyChart .g-xtitle text,
-    .stPlotlyChart .g-ytitle text,
-    .stPlotlyChart .xtick text,
-    .stPlotlyChart .ytick text,
-    .stPlotlyChart .legendtext {
-        fill: var(--text-color) !important;
-        color: var(--text-color) !important;
+    /* Distinct threshold badge colors in Plotly curve */
+    .stPlotlyChart text .badge-pill-gold,
+    .stPlotlyChart tspan .badge-pill-gold {
+        fill: #F59E0B !important;
+        color: #F59E0B !important;
     }
+    .stPlotlyChart text .badge-pill-lime,
+    .stPlotlyChart tspan .badge-pill-lime {
+        fill: #10B981 !important;
+        color: #10B981 !important;
+    }
+    .stPlotlyChart text .badge-pill-cyan,
+    .stPlotlyChart tspan .badge-pill-cyan {
+        fill: #00B4D8 !important;
+        color: #00B4D8 !important;
+    }
+    .stPlotlyChart text .badge-pill-rose,
+    .stPlotlyChart tspan .badge-pill-rose {
+        fill: #E11D48 !important;
+        color: #E11D48 !important;
+    }
+
     .stPlotlyChart .xgrid,
     .stPlotlyChart .ygrid {
         stroke: rgba(128, 128, 128, 0.22) !important;
@@ -762,19 +774,21 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
 # Staggered vertical markers with non-overlapping pill badges
 # Level 1 (y=88): Keisuke (Amber Gold)
 if kei_abs is not None:
-    fig_curve.add_vline(x=kei_abs, line=dict(color="#D97706", dash="dash", width=2))
+    fig_curve.add_vline(x=kei_abs, line=dict(color="#F59E0B", dash="dash", width=2))
     xanc = "left" if kei_abs < 35 else ("right" if kei_abs > 220 else "center")
     fig_curve.add_annotation(
         x=kei_abs,
         y=88,
-        text=f"<b>Keisuke ({kei_abs:.1f})</b>",
+        text=f"<span class='badge-pill-gold'><b>Keisuke ({kei_abs:.1f})</b></span>",
         showarrow=False,
         xanchor=xanc,
-        font=dict(color="#D97706", size=11),
-        bgcolor="rgba(217, 119, 6, 0.15)",
-        bordercolor="#D97706",
-        borderwidth=1,
-        borderpad=3,
+        width=140,
+        align="center",
+        font=dict(color="#F59E0B", size=11),
+        bgcolor="rgba(245, 158, 11, 0.16)",
+        bordercolor="#F59E0B",
+        borderwidth=1.5,
+        borderpad=6,
     )
 
 # Level 2 (y=68): Custom (Lime Green)
@@ -783,14 +797,16 @@ xanc = "left" if custom_abs < 35 else ("right" if custom_abs > 220 else "center"
 fig_curve.add_annotation(
     x=custom_abs,
     y=68,
-    text=f"<b>Custom ({custom_abs:.1f})</b>",
+    text=f"<span class='badge-pill-lime'><b>Custom ({custom_abs:.1f})</b></span>",
     showarrow=False,
     xanchor=xanc,
+    width=140,
+    align="center",
     font=dict(color="#10B981", size=11),
-    bgcolor="rgba(16, 185, 129, 0.15)",
+    bgcolor="rgba(16, 185, 129, 0.16)",
     bordercolor="#10B981",
-    borderwidth=1,
-    borderpad=3,
+    borderwidth=1.5,
+    borderpad=6,
 )
 
 # Level 3 (y=48): UKD (Cyan)
@@ -800,14 +816,16 @@ if ukd_abs is not None:
     fig_curve.add_annotation(
         x=ukd_abs,
         y=48,
-        text=f"<b>UKD ({ukd_abs:.1f})</b>",
+        text=f"<span class='badge-pill-cyan'><b>UKD ({ukd_abs:.1f})</b></span>",
         showarrow=False,
         xanchor=xanc,
+        width=140,
+        align="center",
         font=dict(color="#00B4D8", size=11),
-        bgcolor="rgba(0, 180, 216, 0.15)",
+        bgcolor="rgba(0, 180, 216, 0.16)",
         bordercolor="#00B4D8",
-        borderwidth=1,
-        borderpad=3,
+        borderwidth=1.5,
+        borderpad=6,
     )
 
 # Clinical IHC Reference (Rose Red)
@@ -818,15 +836,17 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
     fig_curve.add_annotation(
         x=210,
         y=ihc_val,
-        text=f"<b>Clinical IHC ({ihc_val:.1f}%)</b>",
+        text=f"<span class='badge-pill-rose'><b>Clinical IHC ({ihc_val:.1f}%)</b></span>",
         showarrow=False,
         xanchor="right",
         yanchor=yanc,
+        width=180,
+        align="center",
         font=dict(color="#E11D48", size=11),
-        bgcolor="rgba(225, 29, 72, 0.15)",
+        bgcolor="rgba(225, 29, 72, 0.16)",
         bordercolor="#E11D48",
-        borderwidth=1,
-        borderpad=3,
+        borderwidth=1.5,
+        borderpad=6,
     )
 
 fig_curve.update_layout(
