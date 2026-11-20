@@ -173,86 +173,12 @@ st.markdown(
         border-top: 3px solid #10B981 !important;
     }
 
-    /* Response Curve Ticks, Titles & Legends (Adapts to Light & Dark Mode) */
-    div[data-testid="stPlotlyChart"] svg text,
-    div[data-testid="stPlotlyChart"] svg tspan,
-    .stPlotlyChart svg text,
-    .stPlotlyChart svg tspan {
-        fill: var(--text-color) !important;
-        color: var(--text-color) !important;
-    }
-
-    /* Dark Mode Fallback */
-    @media (prefers-color-scheme: dark) {
-        div[data-testid="stPlotlyChart"] svg text,
-        div[data-testid="stPlotlyChart"] svg tspan,
-        .stPlotlyChart svg text,
-        .stPlotlyChart svg tspan {
-            fill: #F1F5F9 !important;
-            color: #F1F5F9 !important;
-        }
-    }
-    [data-theme="dark"] div[data-testid="stPlotlyChart"] svg text,
-    [data-theme="dark"] div[data-testid="stPlotlyChart"] svg tspan {
-        fill: #F1F5F9 !important;
-        color: #F1F5F9 !important;
-    }
-
-    /* Light Mode Fallback */
-    @media (prefers-color-scheme: light) {
-        div[data-testid="stPlotlyChart"] svg text,
-        div[data-testid="stPlotlyChart"] svg tspan,
-        .stPlotlyChart svg text,
-        .stPlotlyChart svg tspan {
-            fill: #1E293B !important;
-            color: #1E293B !important;
-        }
-    }
-    [data-theme="light"] div[data-testid="stPlotlyChart"] svg text,
-    [data-theme="light"] div[data-testid="stPlotlyChart"] svg tspan {
-        fill: #1E293B !important;
-        color: #1E293B !important;
-    }
-
-    /* Threshold badge annotation colors must NEVER be overwritten */
-    div[data-testid="stPlotlyChart"] .st-annot-kei,
-    div[data-testid="stPlotlyChart"] .st-annot-kei *,
-    .stPlotlyChart .st-annot-kei,
-    .stPlotlyChart .st-annot-kei * {
-        fill: #F59E0B !important;
-        color: #F59E0B !important;
-    }
-
-    div[data-testid="stPlotlyChart"] .st-annot-custom,
-    div[data-testid="stPlotlyChart"] .st-annot-custom *,
-    .stPlotlyChart .st-annot-custom,
-    .stPlotlyChart .st-annot-custom * {
-        fill: #10B981 !important;
-        color: #10B981 !important;
-    }
-
-    div[data-testid="stPlotlyChart"] .st-annot-ukd,
-    div[data-testid="stPlotlyChart"] .st-annot-ukd *,
-    .stPlotlyChart .st-annot-ukd,
-    .stPlotlyChart .st-annot-ukd * {
-        fill: #00B4D8 !important;
-        color: #00B4D8 !important;
-    }
-
-    div[data-testid="stPlotlyChart"] .st-annot-ihc,
-    div[data-testid="stPlotlyChart"] .st-annot-ihc *,
-    .stPlotlyChart .st-annot-ihc,
-    .stPlotlyChart .st-annot-ihc * {
-        fill: #E11D48 !important;
-        color: #E11D48 !important;
-    }
-
     .stPlotlyChart .xgrid,
     .stPlotlyChart .ygrid {
-        stroke: rgba(128, 128, 128, 0.20) !important;
+        stroke: rgba(128, 128, 128, 0.18) !important;
     }
     .stPlotlyChart .zerolinelayer path {
-        stroke: rgba(128, 128, 128, 0.35) !important;
+        stroke: rgba(128, 128, 128, 0.30) !important;
     }
     </style>
     """,
@@ -414,6 +340,17 @@ with st.sidebar:
     st.title("🔬 PD-1 Threshold Tuner")
     storage_badge = "☁️ AWS S3" if dm.use_s3 else "📁 Local Cache"
     st.caption(f"Cohort: {len(df_cohort)} cores | Storage: **{storage_badge}**")
+
+    # Explicit Theme Switcher (Dark Mode / Light Mode)
+    theme_choice = st.radio(
+        "Theme Mode:",
+        ["🌙 Dark Mode", "☀️ Light Mode"],
+        index=0 if st.session_state.get("theme_choice", "dark") == "dark" else 1,
+        horizontal=True,
+        key="theme_choice_radio",
+    )
+    is_dark = "Dark" in theme_choice
+    st.session_state.theme_choice = "dark" if is_dark else "light"
 
     # Filter options
     filter_choice = st.selectbox(
@@ -783,9 +720,47 @@ with col_m4:
         show_fullscreen_modal(img_custom, custom_hdr, f"Cutoff: {custom_abs:.1f} | Positive: {n_custom:,} cells ({pct_custom:.1f}%) [Lime Green]")
 
 # ------------------------------------------------------------------------------
-# Threshold vs. Positivity Response Curve (Cached Curve Points, Live Indicator)
+# Threshold vs. Positivity Response Curve (Theme-Aware: Dark & Light Mode)
 # ------------------------------------------------------------------------------
 st.markdown("### 📈 Threshold vs. Positivity Response Curve")
+
+# Theme Palette Definition (Dark Mode vs Light Mode)
+is_dark = st.session_state.get("theme_choice", "dark") == "dark"
+
+if is_dark:
+    curve_color = "#38BDF8"       # Bright Sky Blue
+    axis_title_col = "#E2E8F0"    # Crisp Silver-White
+    axis_tick_col = "#CBD5E1"     # Silver
+    legend_col = "#F1F5F9"        # Pure Bright White
+    grid_col = "rgba(255, 255, 255, 0.12)"
+    zeroline_col = "rgba(255, 255, 255, 0.25)"
+    
+    # Luminous badges on dark canvas
+    c_kei = "#F59E0B"
+    bg_kei = "rgba(245, 158, 11, 0.22)"
+    c_custom = "#10B981"
+    bg_custom = "rgba(16, 185, 129, 0.22)"
+    c_ukd = "#00B4D8"
+    bg_ukd = "rgba(0, 180, 216, 0.22)"
+    c_ihc = "#FB7185"
+    bg_ihc = "rgba(225, 29, 72, 0.22)"
+else:
+    curve_color = "#0284C7"       # Vibrant Deep Blue
+    axis_title_col = "#0F172A"    # High-contrast Pitch Black / Slate-900
+    axis_tick_col = "#334155"     # Clear Slate Charcoal
+    legend_col = "#0F172A"        # High-contrast Pitch Black
+    grid_col = "rgba(0, 0, 0, 0.12)"
+    zeroline_col = "rgba(0, 0, 0, 0.28)"
+    
+    # Deep, rich badges with >= 4.5:1 WCAG contrast on light canvas
+    c_kei = "#B45309"             # Dark Amber Gold
+    bg_kei = "rgba(245, 158, 11, 0.15)"
+    c_custom = "#047857"          # Dark Emerald
+    bg_custom = "rgba(16, 185, 129, 0.15)"
+    c_ukd = "#0284C7"             # Dark Sky Blue / Cyan
+    bg_ukd = "rgba(0, 180, 216, 0.15)"
+    c_ihc = "#BE123C"             # Dark Crimson Rose
+    bg_ihc = "rgba(225, 29, 72, 0.15)"
 
 # Fetch cached response curve (vectorized, <1ms)
 sweep_ths, sweep_pcts = get_cached_response_curve(
@@ -801,7 +776,7 @@ fig_curve.add_trace(
         y=sweep_pcts,
         mode="lines",
         name="Positive Cells (%)",
-        line=dict(color="#0284C7", width=2.5),
+        line=dict(color=curve_color, width=2.5),
     )
 )
 
@@ -813,7 +788,7 @@ if ukd_abs is not None:
             y=[None],
             mode="lines",
             name=f"UKD ({ukd_abs:.1f})",
-            line=dict(color="#00B4D8", dash="dash", width=2),
+            line=dict(color=c_ukd, dash="dash", width=2),
         )
     )
 if kei_abs is not None:
@@ -823,7 +798,7 @@ if kei_abs is not None:
             y=[None],
             mode="lines",
             name=f"Keisuke ({kei_abs:.1f})",
-            line=dict(color="#D97706", dash="dash", width=2),
+            line=dict(color=c_kei, dash="dash", width=2),
         )
     )
 fig_curve.add_trace(
@@ -832,7 +807,7 @@ fig_curve.add_trace(
         y=[None],
         mode="lines",
         name=f"Custom ({custom_abs:.1f})",
-        line=dict(color="#10B981", width=3),
+        line=dict(color=c_custom, width=3),
     )
 )
 if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
@@ -842,63 +817,63 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
             y=[None],
             mode="lines",
             name=f"Clinical IHC ({float(current_row['ihc_val']):.1f}%)",
-            line=dict(color="#E11D48", dash="dot", width=2),
+            line=dict(color=c_ihc, dash="dot", width=2),
         )
     )
 
 # Staggered vertical markers with non-overlapping pill badges
 # Level 1 (y=88): Keisuke (Amber Gold)
 if kei_abs is not None:
-    fig_curve.add_vline(x=kei_abs, line=dict(color="#F59E0B", dash="dash", width=2))
+    fig_curve.add_vline(x=kei_abs, line=dict(color=c_kei, dash="dash", width=2))
     xanc = "left" if kei_abs < 35 else ("right" if kei_abs > 220 else "center")
     fig_curve.add_annotation(
         x=kei_abs,
         y=88,
-        text=f"<span class='st-annot-kei'><b>Keisuke ({kei_abs:.1f})</b></span>",
+        text=f"<b>Keisuke ({kei_abs:.1f})</b>",
         showarrow=False,
         xanchor=xanc,
         width=140,
         align="center",
-        font=dict(color="#F59E0B", size=11),
-        bgcolor="rgba(245, 158, 11, 0.16)",
-        bordercolor="#F59E0B",
+        font=dict(color=c_kei, size=11),
+        bgcolor=bg_kei,
+        bordercolor=c_kei,
         borderwidth=1.5,
         borderpad=6,
     )
 
 # Level 2 (y=68): Custom (Lime Green)
-fig_curve.add_vline(x=custom_abs, line=dict(color="#10B981", width=3))
+fig_curve.add_vline(x=custom_abs, line=dict(color=c_custom, width=3))
 xanc = "left" if custom_abs < 35 else ("right" if custom_abs > 220 else "center")
 fig_curve.add_annotation(
     x=custom_abs,
     y=68,
-    text=f"<span class='st-annot-custom'><b>Custom ({custom_abs:.1f})</b></span>",
+    text=f"<b>Custom ({custom_abs:.1f})</b>",
     showarrow=False,
     xanchor=xanc,
     width=140,
     align="center",
-    font=dict(color="#10B981", size=11),
-    bgcolor="rgba(16, 185, 129, 0.16)",
-    bordercolor="#10B981",
+    font=dict(color=c_custom, size=11),
+    bgcolor=bg_custom,
+    bordercolor=c_custom,
     borderwidth=1.5,
     borderpad=6,
 )
 
 # Level 3 (y=48): UKD (Cyan)
 if ukd_abs is not None:
-    fig_curve.add_vline(x=ukd_abs, line=dict(color="#00B4D8", dash="dash", width=2))
+    fig_curve.add_vline(x=ukd_abs, line=dict(color=c_ukd, dash="dash", width=2))
     xanc = "left" if ukd_abs < 35 else ("right" if ukd_abs > 220 else "center")
     fig_curve.add_annotation(
         x=ukd_abs,
         y=48,
-        text=f"<span class='st-annot-ukd'><b>UKD ({ukd_abs:.1f})</b></span>",
+        text=f"<b>UKD ({ukd_abs:.1f})</b>",
         showarrow=False,
         xanchor=xanc,
         width=140,
         align="center",
-        font=dict(color="#00B4D8", size=11),
-        bgcolor="rgba(0, 180, 216, 0.16)",
-        bordercolor="#00B4D8",
+        font=dict(color=c_ukd, size=11),
+        bgcolor=bg_ukd,
+        bordercolor=c_ukd,
         borderwidth=1.5,
         borderpad=6,
     )
@@ -906,20 +881,20 @@ if ukd_abs is not None:
 # Clinical IHC Reference (Rose Red)
 if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
     ihc_val = float(current_row["ihc_val"])
-    fig_curve.add_hline(y=ihc_val, line=dict(color="#E11D48", dash="dot", width=2))
+    fig_curve.add_hline(y=ihc_val, line=dict(color=c_ihc, dash="dot", width=2))
     yanc = "bottom" if ihc_val < 85 else "top"
     fig_curve.add_annotation(
         x=210,
         y=ihc_val,
-        text=f"<span class='st-annot-ihc'><b>Clinical IHC ({ihc_val:.1f}%)</b></span>",
+        text=f"<b>Clinical IHC ({ihc_val:.1f}%)</b>",
         showarrow=False,
         xanchor="right",
         yanchor=yanc,
         width=180,
         align="center",
-        font=dict(color="#E11D48", size=11),
-        bgcolor="rgba(225, 29, 72, 0.16)",
-        bordercolor="#E11D48",
+        font=dict(color=c_ihc, size=11),
+        bgcolor=bg_ihc,
+        bordercolor=c_ihc,
         borderwidth=1.5,
         borderpad=6,
     )
@@ -930,20 +905,20 @@ fig_curve.update_layout(
     xaxis_title="PD-1 Intensity Cutoff (abs_threshold)",
     yaxis_title="Positive Cells (%)",
     xaxis=dict(
-        title=dict(font=dict(color="#CBD5E1")),
-        tickfont=dict(color="#CBD5E1"),
+        title=dict(font=dict(color=axis_title_col, size=12)),
+        tickfont=dict(color=axis_tick_col, size=11),
         range=[0, 255],
         showgrid=True,
-        gridcolor="rgba(128, 128, 128, 0.18)",
-        zerolinecolor="rgba(128, 128, 128, 0.25)",
+        gridcolor=grid_col,
+        zerolinecolor=zeroline_col,
     ),
     yaxis=dict(
-        title=dict(font=dict(color="#CBD5E1")),
-        tickfont=dict(color="#CBD5E1"),
+        title=dict(font=dict(color=axis_title_col, size=12)),
+        tickfont=dict(color=axis_tick_col, size=11),
         range=[0, 100],
         showgrid=True,
-        gridcolor="rgba(128, 128, 128, 0.18)",
-        zerolinecolor="rgba(128, 128, 128, 0.25)",
+        gridcolor=grid_col,
+        zerolinecolor=zeroline_col,
     ),
     legend=dict(
         orientation="h",
@@ -951,12 +926,12 @@ fig_curve.update_layout(
         y=1.02,
         xanchor="center",
         x=0.5,
-        font=dict(color="#CBD5E1", size=11),
+        font=dict(color=legend_col, size=11),
     ),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
 )
-st.plotly_chart(fig_curve, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig_curve, use_container_width=True, config={"displayModeBar": False}, theme=None)
 
 # ------------------------------------------------------------------------------
 # Reviewer Decision Card
