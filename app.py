@@ -232,15 +232,15 @@ def get_curations_dict() -> Dict[str, Dict[str, Any]]:
 
 def get_cohort_dataframe() -> pd.DataFrame:
     df_base = get_base_cohort_dataframe()
-    if "tneo_pd1_str" not in df_base.columns or df_base["tneo_pd1_str"].isna().all():
+    if "tneo_str" not in df_base.columns or df_base["tneo_str"].isna().all():
         get_base_cohort_dataframe.clear()
         df_base = get_base_cohort_dataframe()
     curations_dict = get_curations_dict()
     df = S3DataManager.merge_curations(df_base, curations_dict)
     if "tneo_def" in df.columns:
         df["tneo_def"] = df["tneo_def"].fillna("N/A").astype(str)
-    if "tneo_pd1_str" in df.columns:
-        df["tneo_pd1_str"] = df["tneo_pd1_str"].fillna("N/A").astype(str)
+    if "tneo_str" in df.columns:
+        df["tneo_str"] = df["tneo_str"].fillna("N/A").astype(str)
     return df
 
 
@@ -682,9 +682,8 @@ subtype = current_row["subtype"]
 total_cells = bundle.total_cells
 
 tneo_def = str(current_row.get("tneo_def", "N/A"))
-tneo_pd1_str = str(current_row.get("tneo_pd1_str", "N/A"))
-raw_tneo_ratio = current_row.get("tneo_pd1_ratio")
-tneo_pd1_pct = float(raw_tneo_ratio) * 100.0 if pd.notna(raw_tneo_ratio) and raw_tneo_ratio is not None else None
+tneo_str = str(current_row.get("tneo_str", "N/A"))
+tneo_cells = int(current_row.get("tneo_cells", 0)) if pd.notna(current_row.get("tneo_cells")) else 0
 
 ukd_abs = current_row["our_abs_th"]
 kei_abs = current_row["kei_abs_th"]
@@ -733,8 +732,8 @@ st.markdown(
 m_c1, m_c2, m_c3, m_c4 = st.columns(4)
 with m_c1:
     tneo_annot = (
-        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo: <b style="color: #6366F1;">{tneo_pd1_str}</b> <span style="opacity: 0.85;">({tneo_def})</span></span>'
-        if tneo_pd1_str != "N/A"
+        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo Core %: <b style="color: #6366F1;">{tneo_str}</b> ({tneo_cells:,} cells) <span style="opacity: 0.85;">[{tneo_def}]</span></span>'
+        if tneo_str != "N/A" and tneo_str != "0.0%"
         else '<span class="metric-card-sub">Pathology estimate</span>'
     )
     st.markdown(

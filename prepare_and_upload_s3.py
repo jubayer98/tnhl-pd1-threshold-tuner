@@ -121,6 +121,15 @@ def index_cohort_metadata(cfg: Dict[str, Any]) -> pd.DataFrame:
     # UKD thresholds
     our_th_base = resolve_path(local_src["our_thresholds_dir"])
 
+    # Minor celltype composition for exact UKD Tneo cell abundance and %
+    tneo_comp_map = {}
+    try:
+        df_comp = pd.read_excel(qc_path, sheet_name="minor_celltype_composition")
+        df_tneo = df_comp[df_comp["label"] == "T_neo"].drop_duplicates(subset=["core_name"])
+        tneo_comp_map = df_tneo.set_index("core_name")[["cells", "pct_of_core"]].to_dict(orient="index")
+    except Exception:
+        pass
+
     records = []
     for _, row in df_qc.iterrows():
         c_name = str(row["core_name"]).strip()
@@ -136,15 +145,13 @@ def index_cohort_metadata(cfg: Dict[str, Any]) -> pd.DataFrame:
         raw_ihc = row.get(col_n_name, row.get("PD1_IHC"))
         num_ihc, disp_ihc, is_valid_ihc = parse_ihc_value(raw_ihc)
 
-        # Tneo neoplastic phenotype and PD-1 ratio
+        # Tneo neoplastic phenotype definition and UKD pipeline core abundance
         tneo_def = str(row.get("tneo_def", "")).strip() if pd.notna(row.get("tneo_def")) else "N/A"
         tneo_markers = str(row.get("tneo_markers", "")).strip() if pd.notna(row.get("tneo_markers")) else "N/A"
-        raw_tneo_ratio = row.get("T Neo PD1 ratio_4th")
-        try:
-            tneo_ratio = float(raw_tneo_ratio) if pd.notna(raw_tneo_ratio) else None
-        except (ValueError, TypeError):
-            tneo_ratio = None
-        tneo_str = f"{tneo_ratio * 100:.1f}%" if tneo_ratio is not None else "N/A"
+        tneo_info = tneo_comp_map.get(c_name, {})
+        tneo_cells = int(tneo_info.get("cells", 0))
+        tneo_pct = float(tneo_info.get("pct_of_core", 0.0))
+        tneo_str = f"{tneo_pct:.1f}%" if tneo_cells > 0 else "N/A"
 
         k_info = kei_dict.get(c_name, {})
         k_abs = k_info.get("lower")
@@ -172,8 +179,9 @@ def index_cohort_metadata(cfg: Dict[str, Any]) -> pd.DataFrame:
             "is_valid_ihc": is_valid_ihc,
             "tneo_def": tneo_def,
             "tneo_markers": tneo_markers,
-            "tneo_pd1_ratio": tneo_ratio,
-            "tneo_pd1_str": tneo_str,
+            "tneo_cells": tneo_cells,
+            "tneo_pct": tneo_pct,
+            "tneo_str": tneo_str,
             "zarr_path": str(zarr_map[c_name]),
             "our_abs_th": float(o_abs) if pd.notna(o_abs) else None,
             "our_perc_pos_th": float(o_perc) if pd.notna(o_perc) else 0.5,
