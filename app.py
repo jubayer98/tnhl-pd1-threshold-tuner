@@ -173,6 +173,20 @@ st.markdown(
         border-top: 3px solid #10B981 !important;
     }
 
+    /* Response Curve Axis, Ticks & Legend styling: dynamically matches Streamlit theme */
+    div[data-testid="stPlotlyChart"] .g-xtitle text,
+    div[data-testid="stPlotlyChart"] .g-ytitle text,
+    div[data-testid="stPlotlyChart"] .xtick text,
+    div[data-testid="stPlotlyChart"] .ytick text,
+    div[data-testid="stPlotlyChart"] .legend text,
+    div[data-testid="stPlotlyChart"] .legendtext,
+    div[data-testid="stPlotlyChart"] text.xtitle,
+    div[data-testid="stPlotlyChart"] text.ytitle {
+        fill: var(--text-color) !important;
+        color: var(--text-color) !important;
+        font-weight: 500 !important;
+    }
+
     .stPlotlyChart .xgrid,
     .stPlotlyChart .ygrid {
         stroke: rgba(128, 128, 128, 0.18) !important;
@@ -341,11 +355,14 @@ with st.sidebar:
     storage_badge = "☁️ AWS S3" if dm.use_s3 else "📁 Local Cache"
     st.caption(f"Cohort: {len(df_cohort)} cores | Storage: **{storage_badge}**")
 
-    # Explicit Theme Switcher (Dark Mode / Light Mode)
+    # Explicit Theme Switcher (Defaults to Light Mode for pristine daylight contrast)
+    if "theme_choice" not in st.session_state:
+        st.session_state.theme_choice = "light"
+
     theme_choice = st.radio(
         "Theme Mode:",
-        ["🌙 Dark Mode", "☀️ Light Mode"],
-        index=0 if st.session_state.get("theme_choice", "dark") == "dark" else 1,
+        ["☀️ Light Mode", "🌙 Dark Mode"],
+        index=0 if st.session_state.get("theme_choice", "light") == "light" else 1,
         horizontal=True,
         key="theme_choice_radio",
     )
@@ -725,13 +742,13 @@ with col_m4:
 st.markdown("### 📈 Threshold vs. Positivity Response Curve")
 
 # Theme Palette Definition (Dark Mode vs Light Mode)
-is_dark = st.session_state.get("theme_choice", "dark") == "dark"
+is_dark = st.session_state.get("theme_choice", "light") == "dark"
 
 if is_dark:
     curve_color = "#38BDF8"       # Bright Sky Blue
-    axis_title_col = "#E2E8F0"    # Crisp Silver-White
+    axis_title_col = "#F1F5F9"    # Crisp White
     axis_tick_col = "#CBD5E1"     # Silver
-    legend_col = "#F1F5F9"        # Pure Bright White
+    legend_col = "#F8FAFC"        # Pure Bright White
     grid_col = "rgba(255, 255, 255, 0.12)"
     zeroline_col = "rgba(255, 255, 255, 0.25)"
     
@@ -747,7 +764,7 @@ if is_dark:
 else:
     curve_color = "#0284C7"       # Vibrant Deep Blue
     axis_title_col = "#0F172A"    # High-contrast Pitch Black / Slate-900
-    axis_tick_col = "#334155"     # Clear Slate Charcoal
+    axis_tick_col = "#1E293B"     # High-contrast Charcoal / Slate-800
     legend_col = "#0F172A"        # High-contrast Pitch Black
     grid_col = "rgba(0, 0, 0, 0.12)"
     zeroline_col = "rgba(0, 0, 0, 0.28)"
