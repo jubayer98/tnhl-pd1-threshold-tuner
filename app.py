@@ -148,8 +148,8 @@ st.markdown(
         padding: 7px 10px;
         border-radius: 6px;
         margin-bottom: 4px;
-        background-color: var(--secondary-background-color) !important;
-        border: 1px solid rgba(128, 128, 128, 0.22) !important;
+        background-color: #F8FAFC !important;
+        border: 1px solid #E2E8F0 !important;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -157,23 +157,23 @@ st.markdown(
         letter-spacing: 0.02em;
     }
     .panel-header-raw {
-        color: var(--text-color) !important;
-        border-top: 3px solid #94A3B8 !important;
+        color: #0F172A !important;
+        border-top: 3px solid #64748B !important;
     }
     .panel-header-ukd {
-        color: #00B4D8 !important;
-        border-top: 3px solid #00B4D8 !important;
+        color: #0284C7 !important;
+        border-top: 3px solid #0284C7 !important;
     }
     .panel-header-kei {
-        color: #F59E0B !important;
-        border-top: 3px solid #F59E0B !important;
+        color: #B45309 !important;
+        border-top: 3px solid #B45309 !important;
     }
     .panel-header-custom {
-        color: #10B981 !important;
-        border-top: 3px solid #10B981 !important;
+        color: #047857 !important;
+        border-top: 3px solid #047857 !important;
     }
 
-    /* Response Curve Axis, Ticks & Legend styling: dynamically matches Streamlit theme */
+    /* Response Curve Axis, Ticks & Legend styling: High-contrast Light Mode */
     div[data-testid="stPlotlyChart"] .g-xtitle text,
     div[data-testid="stPlotlyChart"] .g-ytitle text,
     div[data-testid="stPlotlyChart"] .xtick text,
@@ -182,17 +182,17 @@ st.markdown(
     div[data-testid="stPlotlyChart"] .legendtext,
     div[data-testid="stPlotlyChart"] text.xtitle,
     div[data-testid="stPlotlyChart"] text.ytitle {
-        fill: var(--text-color) !important;
-        color: var(--text-color) !important;
-        font-weight: 500 !important;
+        fill: #0F172A !important;
+        color: #0F172A !important;
+        font-weight: 600 !important;
     }
 
     .stPlotlyChart .xgrid,
     .stPlotlyChart .ygrid {
-        stroke: rgba(128, 128, 128, 0.18) !important;
+        stroke: rgba(0, 0, 0, 0.08) !important;
     }
     .stPlotlyChart .zerolinelayer path {
-        stroke: rgba(128, 128, 128, 0.30) !important;
+        stroke: rgba(0, 0, 0, 0.22) !important;
     }
     </style>
     """,
@@ -354,20 +354,6 @@ with st.sidebar:
     st.title("🔬 PD-1 Threshold Tuner")
     storage_badge = "☁️ AWS S3" if dm.use_s3 else "📁 Local Cache"
     st.caption(f"Cohort: {len(df_cohort)} cores | Storage: **{storage_badge}**")
-
-    # Explicit Theme Switcher (Defaults to Light Mode for pristine daylight contrast)
-    if "theme_choice" not in st.session_state:
-        st.session_state.theme_choice = "light"
-
-    theme_choice = st.radio(
-        "Theme Mode:",
-        ["☀️ Light Mode", "🌙 Dark Mode"],
-        index=0 if st.session_state.get("theme_choice", "light") == "light" else 1,
-        horizontal=True,
-        key="theme_choice_radio",
-    )
-    is_dark = "Dark" in theme_choice
-    st.session_state.theme_choice = "dark" if is_dark else "light"
 
     # Filter options
     filter_choice = st.selectbox(
@@ -737,47 +723,26 @@ with col_m4:
         show_fullscreen_modal(img_custom, custom_hdr, f"Cutoff: {custom_abs:.1f} | Positive: {n_custom:,} cells ({pct_custom:.1f}%) [Lime Green]")
 
 # ------------------------------------------------------------------------------
-# Threshold vs. Positivity Response Curve (Theme-Aware: Dark & Light Mode)
+# Threshold vs. Positivity Response Curve (High-Contrast Light Mode)
 # ------------------------------------------------------------------------------
 st.markdown("### 📈 Threshold vs. Positivity Response Curve")
 
-# Theme Palette Definition (Dark Mode vs Light Mode)
-is_dark = st.session_state.get("theme_choice", "light") == "dark"
+curve_color = "#0284C7"       # Vibrant Deep Blue
+axis_title_col = "#0F172A"    # High-contrast Pitch Black / Slate-900
+axis_tick_col = "#0F172A"     # High-contrast Pitch Black / Slate-900
+legend_col = "#0F172A"        # High-contrast Pitch Black
+grid_col = "rgba(0, 0, 0, 0.08)"
+zeroline_col = "rgba(0, 0, 0, 0.22)"
 
-if is_dark:
-    curve_color = "#38BDF8"       # Bright Sky Blue
-    axis_title_col = "#F1F5F9"    # Crisp White
-    axis_tick_col = "#CBD5E1"     # Silver
-    legend_col = "#F8FAFC"        # Pure Bright White
-    grid_col = "rgba(255, 255, 255, 0.12)"
-    zeroline_col = "rgba(255, 255, 255, 0.25)"
-    
-    # Luminous badges on dark canvas
-    c_kei = "#F59E0B"
-    bg_kei = "rgba(245, 158, 11, 0.22)"
-    c_custom = "#10B981"
-    bg_custom = "rgba(16, 185, 129, 0.22)"
-    c_ukd = "#00B4D8"
-    bg_ukd = "rgba(0, 180, 216, 0.22)"
-    c_ihc = "#FB7185"
-    bg_ihc = "rgba(225, 29, 72, 0.22)"
-else:
-    curve_color = "#0284C7"       # Vibrant Deep Blue
-    axis_title_col = "#0F172A"    # High-contrast Pitch Black / Slate-900
-    axis_tick_col = "#1E293B"     # High-contrast Charcoal / Slate-800
-    legend_col = "#0F172A"        # High-contrast Pitch Black
-    grid_col = "rgba(0, 0, 0, 0.12)"
-    zeroline_col = "rgba(0, 0, 0, 0.28)"
-    
-    # Deep, rich badges with >= 4.5:1 WCAG contrast on light canvas
-    c_kei = "#B45309"             # Dark Amber Gold
-    bg_kei = "rgba(245, 158, 11, 0.15)"
-    c_custom = "#047857"          # Dark Emerald
-    bg_custom = "rgba(16, 185, 129, 0.15)"
-    c_ukd = "#0284C7"             # Dark Sky Blue / Cyan
-    bg_ukd = "rgba(0, 180, 216, 0.15)"
-    c_ihc = "#BE123C"             # Dark Crimson Rose
-    bg_ihc = "rgba(225, 29, 72, 0.15)"
+# High-contrast WCAG-compliant badges on light canvas
+c_kei = "#B45309"             # Dark Amber Gold
+bg_kei = "rgba(245, 158, 11, 0.15)"
+c_custom = "#047857"          # Dark Emerald
+bg_custom = "rgba(16, 185, 129, 0.15)"
+c_ukd = "#0284C7"             # Dark Sky Blue / Cyan
+bg_ukd = "rgba(0, 180, 216, 0.15)"
+c_ihc = "#BE123C"             # Dark Crimson Rose
+bg_ihc = "rgba(225, 29, 72, 0.15)"
 
 # Fetch cached response curve (vectorized, <1ms)
 sweep_ths, sweep_pcts = get_cached_response_curve(
