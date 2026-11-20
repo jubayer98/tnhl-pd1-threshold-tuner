@@ -142,26 +142,109 @@ st.markdown(
         color: var(--text-color) !important;
     }
 
-    .panel-header-title {
-        font-size: 0.90rem;
+    .panel-header-card {
+        font-size: 0.88rem;
         font-weight: 700;
-        color: var(--text-color) !important;
-        padding: 4px 6px;
-        margin-bottom: 2px;
+        padding: 7px 10px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+        background-color: var(--secondary-background-color) !important;
+        border: 1px solid rgba(128, 128, 128, 0.22) !important;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        text-align: center;
+        letter-spacing: 0.02em;
+    }
+    .panel-header-raw {
+        color: var(--text-color) !important;
+        border-top: 3px solid #94A3B8 !important;
+    }
+    .panel-header-ukd {
+        color: #00B4D8 !important;
+        border-top: 3px solid #00B4D8 !important;
+    }
+    .panel-header-kei {
+        color: #F59E0B !important;
+        border-top: 3px solid #F59E0B !important;
+    }
+    .panel-header-custom {
+        color: #10B981 !important;
+        border-top: 3px solid #10B981 !important;
     }
 
     /* Response Curve Ticks, Titles & Legends (Adapts to Light & Dark Mode) */
-    .stPlotlyChart .g-xtitle text,
-    .stPlotlyChart .g-ytitle text,
-    .stPlotlyChart .xtick text,
-    .stPlotlyChart .ytick text,
-    .stPlotlyChart .legendtext {
+    div[data-testid="stPlotlyChart"] svg text,
+    div[data-testid="stPlotlyChart"] svg tspan,
+    .stPlotlyChart svg text,
+    .stPlotlyChart svg tspan {
         fill: var(--text-color) !important;
         color: var(--text-color) !important;
-        opacity: 0.88;
+    }
+
+    /* Dark Mode Fallback */
+    @media (prefers-color-scheme: dark) {
+        div[data-testid="stPlotlyChart"] svg text,
+        div[data-testid="stPlotlyChart"] svg tspan,
+        .stPlotlyChart svg text,
+        .stPlotlyChart svg tspan {
+            fill: #F1F5F9 !important;
+            color: #F1F5F9 !important;
+        }
+    }
+    [data-theme="dark"] div[data-testid="stPlotlyChart"] svg text,
+    [data-theme="dark"] div[data-testid="stPlotlyChart"] svg tspan {
+        fill: #F1F5F9 !important;
+        color: #F1F5F9 !important;
+    }
+
+    /* Light Mode Fallback */
+    @media (prefers-color-scheme: light) {
+        div[data-testid="stPlotlyChart"] svg text,
+        div[data-testid="stPlotlyChart"] svg tspan,
+        .stPlotlyChart svg text,
+        .stPlotlyChart svg tspan {
+            fill: #1E293B !important;
+            color: #1E293B !important;
+        }
+    }
+    [data-theme="light"] div[data-testid="stPlotlyChart"] svg text,
+    [data-theme="light"] div[data-testid="stPlotlyChart"] svg tspan {
+        fill: #1E293B !important;
+        color: #1E293B !important;
+    }
+
+    /* Threshold badge annotation colors must NEVER be overwritten */
+    div[data-testid="stPlotlyChart"] .st-annot-kei,
+    div[data-testid="stPlotlyChart"] .st-annot-kei *,
+    .stPlotlyChart .st-annot-kei,
+    .stPlotlyChart .st-annot-kei * {
+        fill: #F59E0B !important;
+        color: #F59E0B !important;
+    }
+
+    div[data-testid="stPlotlyChart"] .st-annot-custom,
+    div[data-testid="stPlotlyChart"] .st-annot-custom *,
+    .stPlotlyChart .st-annot-custom,
+    .stPlotlyChart .st-annot-custom * {
+        fill: #10B981 !important;
+        color: #10B981 !important;
+    }
+
+    div[data-testid="stPlotlyChart"] .st-annot-ukd,
+    div[data-testid="stPlotlyChart"] .st-annot-ukd *,
+    .stPlotlyChart .st-annot-ukd,
+    .stPlotlyChart .st-annot-ukd * {
+        fill: #00B4D8 !important;
+        color: #00B4D8 !important;
+    }
+
+    div[data-testid="stPlotlyChart"] .st-annot-ihc,
+    div[data-testid="stPlotlyChart"] .st-annot-ihc *,
+    .stPlotlyChart .st-annot-ihc,
+    .stPlotlyChart .st-annot-ihc * {
+        fill: #E11D48 !important;
+        color: #E11D48 !important;
     }
 
     .stPlotlyChart .xgrid,
@@ -593,13 +676,13 @@ custom_hdr = f"Panel 4: Custom ({custom_abs:.1f})"
 # Distinct native HTML headers aligned perfectly above the 4 panels
 col_h1, col_h2, col_h3, col_h4 = st.columns(4)
 with col_h1:
-    st.markdown('<div class="panel-header-title">Panel 1: Raw PD-1 Staining</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header-card panel-header-raw">Panel 1: Raw PD-1 Staining</div>', unsafe_allow_html=True)
 with col_h2:
-    st.markdown(f'<div class="panel-header-title badge-cyan">{ukd_hdr}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="panel-header-card panel-header-ukd">{ukd_hdr}</div>', unsafe_allow_html=True)
 with col_h3:
-    st.markdown(f'<div class="panel-header-title badge-gold">{kei_hdr}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="panel-header-card panel-header-kei">{kei_hdr}</div>', unsafe_allow_html=True)
 with col_h4:
-    st.markdown(f'<div class="panel-header-title badge-green">{custom_hdr}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="panel-header-card panel-header-custom">{custom_hdr}</div>', unsafe_allow_html=True)
 
 fig_panels = make_subplots(
     rows=1,
@@ -771,7 +854,7 @@ if kei_abs is not None:
     fig_curve.add_annotation(
         x=kei_abs,
         y=88,
-        text=f"<b>Keisuke ({kei_abs:.1f})</b>",
+        text=f"<span class='st-annot-kei'><b>Keisuke ({kei_abs:.1f})</b></span>",
         showarrow=False,
         xanchor=xanc,
         width=140,
@@ -789,7 +872,7 @@ xanc = "left" if custom_abs < 35 else ("right" if custom_abs > 220 else "center"
 fig_curve.add_annotation(
     x=custom_abs,
     y=68,
-    text=f"<b>Custom ({custom_abs:.1f})</b>",
+    text=f"<span class='st-annot-custom'><b>Custom ({custom_abs:.1f})</b></span>",
     showarrow=False,
     xanchor=xanc,
     width=140,
@@ -808,7 +891,7 @@ if ukd_abs is not None:
     fig_curve.add_annotation(
         x=ukd_abs,
         y=48,
-        text=f"<b>UKD ({ukd_abs:.1f})</b>",
+        text=f"<span class='st-annot-ukd'><b>UKD ({ukd_abs:.1f})</b></span>",
         showarrow=False,
         xanchor=xanc,
         width=140,
@@ -828,7 +911,7 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
     fig_curve.add_annotation(
         x=210,
         y=ihc_val,
-        text=f"<b>Clinical IHC ({ihc_val:.1f}%)</b>",
+        text=f"<span class='st-annot-ihc'><b>Clinical IHC ({ihc_val:.1f}%)</b></span>",
         showarrow=False,
         xanchor="right",
         yanchor=yanc,
@@ -847,12 +930,16 @@ fig_curve.update_layout(
     xaxis_title="PD-1 Intensity Cutoff (abs_threshold)",
     yaxis_title="Positive Cells (%)",
     xaxis=dict(
+        title=dict(font=dict(color="#CBD5E1")),
+        tickfont=dict(color="#CBD5E1"),
         range=[0, 255],
         showgrid=True,
         gridcolor="rgba(128, 128, 128, 0.18)",
         zerolinecolor="rgba(128, 128, 128, 0.25)",
     ),
     yaxis=dict(
+        title=dict(font=dict(color="#CBD5E1")),
+        tickfont=dict(color="#CBD5E1"),
         range=[0, 100],
         showgrid=True,
         gridcolor="rgba(128, 128, 128, 0.18)",
@@ -864,7 +951,7 @@ fig_curve.update_layout(
         y=1.02,
         xanchor="center",
         x=0.5,
-        font=dict(size=11),
+        font=dict(color="#CBD5E1", size=11),
     ),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
