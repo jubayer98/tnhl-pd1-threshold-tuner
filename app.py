@@ -258,7 +258,8 @@ def get_cached_static_images(
     core_id: str,
     ukd_abs: Optional[float],
     kei_abs: Optional[float],
-    perc_pos_th: float,
+    ukd_perc_pos: float,
+    kei_perc_pos: float,
     show_neg: bool,
     hide_masks: bool,
     alpha_fill: float,
@@ -272,7 +273,7 @@ def get_cached_static_images(
     uri_raw = pil_to_data_uri(img_raw)
 
     if ukd_abs is not None:
-        is_pos_ukd, _, _ = bundle.evaluate_threshold(ukd_abs, perc_pos_th)
+        is_pos_ukd, _, _ = bundle.evaluate_threshold(ukd_abs, ukd_perc_pos)
         img_ukd = bundle.render_panel(
             abs_th=ukd_abs,
             is_pos=is_pos_ukd,
@@ -287,7 +288,7 @@ def get_cached_static_images(
         uri_ukd = None
 
     if kei_abs is not None:
-        is_pos_kei, _, _ = bundle.evaluate_threshold(kei_abs, perc_pos_th)
+        is_pos_kei, _, _ = bundle.evaluate_threshold(kei_abs, kei_perc_pos)
         img_kei = bundle.render_panel(
             abs_th=kei_abs,
             is_pos=is_pos_kei,
@@ -341,8 +342,11 @@ if "last_core_id" not in st.session_state:
 if "custom_abs_th" not in st.session_state:
     st.session_state.custom_abs_th = 15.0
 
-if "perc_pos_th" not in st.session_state:
+if "perc_pos_th" not in st.session_state or st.session_state.perc_pos_th is None or float(st.session_state.perc_pos_th) <= 0.0:
     st.session_state.perc_pos_th = 0.50
+
+if "is_saving" not in st.session_state:
+    st.session_state.is_saving = False
 
 if "show_neg" not in st.session_state:
     st.session_state.show_neg = False
@@ -362,11 +366,53 @@ if "zoom_reset_token" not in st.session_state:
 if "nav_dragmode" not in st.session_state:
     st.session_state.nav_dragmode = "zoom"
 
-# Reset review notes whenever the core changes
+# Reset review notes and sync custom_abs_th whenever the core changes
 if st.session_state.current_core_id != st.session_state.last_core_id:
     st.session_state.last_core_id = st.session_state.current_core_id
     note_key = f"notes_{st.session_state.current_core_id}"
     st.session_state[note_key] = ""
+    m_row = df_cohort[df_cohort["core_id"] == st.session_state.current_core_id]
+    if not m_row.empty:
+        cr = m_row.iloc[0]
+        if pd.notna(cr.get("cur_abs_th")):
+            st.session_state.custom_abs_th = float(cr["cur_abs_th"])
+        elif pd.notna(cr.get("our_abs_th")):
+            st.session_state.custom_abs_th = float(cr["our_abs_th"])
+
+# ------------------------------------------------------------------------------
+# Pending 1-Click Save Action Handler (Runs with Spinner & Blocks Double-Clicks)
+# ------------------------------------------------------------------------------
+if st.session_state.get("pending_accept"):
+    action = st.session_state.pop("pending_accept")
+    with st.spinner(f"☁️ Saving {action['type']} for Core {action['cid']} to AWS S3..."):
+        try:
+            dm.save_curation_decision(
+                core_id=action["cid"],
+                decision_type=action["type"],
+                abs_th=action["th"],
+                perc_pos_th=action["perc"],
+                notes=action["note"],
+            )
+            get_curations_dict.clear()
+            st.session_state.custom_abs_th = action["th"]
+            if action["next_cid"]:
+                st.session_state.current_core_id = action["next_cid"]
+                st.session_state.selected_core_dropdown = action["next_cid"]
+                st.session_state[f"notes_{action['next_cid']}"] = ""
+                st.session_state.save_feedback = (
+                    "success",
+                    f"Saved {action['type']} for Core **{action['cid']}** (cutoff: **{action['th']:.1f}**)! Loaded Core **{action['next_cid']}**.",
+                )
+            else:
+                st.session_state.save_feedback = (
+                    "success",
+                    f"Saved {action['type']} for Core **{action['cid']}** (cutoff: **{action['th']:.1f}**)! All cores in current filter completed! 🎉",
+                )
+        except Exception as exc:
+            st.session_state.save_feedback = ("error", f"Error saving decision: {exc}")
+        finally:
+            st.session_state.is_saving = False
+    st.rerun()
 
 # ------------------------------------------------------------------------------
 # Sidebar: Navigation & Controls
@@ -462,69 +508,45 @@ with st.sidebar:
     cid_to_save = str(current_row["core_id"]).strip()
     next_core_id = core_list[current_idx + 1] if current_idx < len(core_list) - 1 else None
 
-    def on_accept_ukd(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
-        dm_inst = get_data_manager()
-        dm_inst.save_curation_decision(
-            core_id=cid,
-            decision_type="Accept UKD",
-            abs_th=th,
-            perc_pos_th=perc,
-            notes=note,
-        )
-        get_curations_dict.clear()
-        st.session_state.custom_abs_th = th
-        if next_cid:
-            st.session_state.current_core_id = next_cid
-            st.session_state.selected_core_dropdown = next_cid
-            st.session_state[f"notes_{next_cid}"] = ""
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved UKD decision for Core **{cid}** (cutoff: **{th:.1f}**)! Loaded Core **{next_cid}**.",
-            )
-        else:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved UKD decision for Core **{cid}** (cutoff: **{th:.1f}**)! All cores in current filter completed! 🎉",
-            )
+    def queue_accept_ukd(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
+        st.session_state.pending_accept = {
+            "type": "Accept UKD",
+            "cid": cid,
+            "th": th,
+            "perc": perc,
+            "note": note,
+            "next_cid": next_cid,
+        }
+        st.session_state.is_saving = True
 
-    def on_accept_keisuke(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
-        dm_inst = get_data_manager()
-        dm_inst.save_curation_decision(
-            core_id=cid,
-            decision_type="Accept Keisuke",
-            abs_th=th,
-            perc_pos_th=perc,
-            notes=note,
-        )
-        get_curations_dict.clear()
-        st.session_state.custom_abs_th = th
-        if next_cid:
-            st.session_state.current_core_id = next_cid
-            st.session_state.selected_core_dropdown = next_cid
-            st.session_state[f"notes_{next_cid}"] = ""
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved Keisuke decision for Core **{cid}** (cutoff: **{th:.1f}**)! Loaded Core **{next_cid}**.",
-            )
-        else:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved Keisuke decision for Core **{cid}** (cutoff: **{th:.1f}**)! All cores in current filter completed! 🎉",
-            )
+    def queue_accept_keisuke(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
+        st.session_state.pending_accept = {
+            "type": "Accept Keisuke",
+            "cid": cid,
+            "th": th,
+            "perc": perc,
+            "note": note,
+            "next_cid": next_cid,
+        }
+        st.session_state.is_saving = True
+
+    is_busy = st.session_state.get("is_saving", False)
 
     # Quick Presets: One option per line
     st.write("**Quick Presets (1-Click Accept):**")
 
     ukd_lbl = f"{current_row['our_abs_th']:.1f}" if pd.notna(current_row["our_abs_th"]) else "N/A"
     has_ukd = pd.notna(current_row["our_abs_th"])
+    ukd_ref_perc = float(current_row["our_perc_pos_th"]) if pd.notna(current_row.get("our_perc_pos_th")) else 0.5
     st.button(
         f"Accept UKD ({ukd_lbl}) ➡",
-        disabled=not has_ukd,
-        on_click=on_accept_ukd,
+        disabled=not has_ukd or is_busy,
+        key="btn_accept_ukd",
+        on_click=queue_accept_ukd,
         args=(
             cid_to_save,
             float(current_row["our_abs_th"]) if has_ukd else 0.0,
-            float(st.session_state.perc_pos_th),
+            ukd_ref_perc,
             st.session_state.get(f"notes_{cid_to_save}", ""),
             next_core_id,
         ),
@@ -533,14 +555,16 @@ with st.sidebar:
 
     kei_lbl = f"{current_row['kei_abs_th']:.1f}" if pd.notna(current_row["kei_abs_th"]) else "N/A"
     has_kei = pd.notna(current_row["kei_abs_th"])
+    kei_ref_perc = float(current_row["kei_perc_pos_th"]) if pd.notna(current_row.get("kei_perc_pos_th")) else 0.5
     st.button(
         f"Accept Keisuke ({kei_lbl}) ➡",
-        disabled=not has_kei,
-        on_click=on_accept_keisuke,
+        disabled=not has_kei or is_busy,
+        key="btn_accept_kei",
+        on_click=queue_accept_keisuke,
         args=(
             cid_to_save,
             float(current_row["kei_abs_th"]) if has_kei else 0.0,
-            float(st.session_state.perc_pos_th),
+            kei_ref_perc,
             st.session_state.get(f"notes_{cid_to_save}", ""),
             next_core_id,
         ),
@@ -625,9 +649,20 @@ perc_pos = float(st.session_state.perc_pos_th)
 alpha_fill = float(st.session_state.alpha_fill)
 alpha_bound = float(st.session_state.alpha_bound)
 
-# Live evaluations
-is_pos_ukd, n_ukd, pct_ukd = bundle.evaluate_threshold(ukd_abs or 999.0, perc_pos) if ukd_abs else (None, 0, 0.0)
-is_pos_kei, n_kei, pct_kei = bundle.evaluate_threshold(kei_abs or 999.0, perc_pos) if kei_abs else (None, 0, 0.0)
+ukd_ref_perc = float(current_row["our_perc_pos_th"]) if pd.notna(current_row.get("our_perc_pos_th")) else 0.5
+kei_ref_perc = float(current_row["kei_perc_pos_th"]) if pd.notna(current_row.get("kei_perc_pos_th")) else 0.5
+
+# Live evaluations: UKD and Keisuke use their reference pipeline perc_pos_th (0.50)
+is_pos_ukd, n_ukd, pct_ukd = (
+    bundle.evaluate_threshold(float(ukd_abs), ukd_ref_perc)
+    if pd.notna(ukd_abs)
+    else (None, 0, 0.0)
+)
+is_pos_kei, n_kei, pct_kei = (
+    bundle.evaluate_threshold(float(kei_abs), kei_ref_perc)
+    if pd.notna(kei_abs)
+    else (None, 0, 0.0)
+)
 is_pos_custom, n_custom, pct_custom = bundle.evaluate_threshold(custom_abs, perc_pos)
 
 # Top Core Stat Banner (Structured, modern metadata badges)
@@ -712,7 +747,8 @@ img_raw, img_ukd, img_kei, uri_raw, uri_ukd, uri_kei = get_cached_static_images(
     core_id=core_id,
     ukd_abs=ukd_abs,
     kei_abs=kei_abs,
-    perc_pos_th=perc_pos,
+    ukd_perc_pos=ukd_ref_perc,
+    kei_perc_pos=kei_ref_perc,
     show_neg=st.session_state.show_neg,
     hide_masks=st.session_state.hide_masks,
     alpha_fill=alpha_fill,
@@ -1080,23 +1116,24 @@ with st.container():
             height=90,
         )
 
-    if st.button("💾 Save Decision to Cloud", type="primary"):
-        save_target = dm.save_curation_decision(
-            core_id=core_id,
-            decision_type=decision_choice,
-            abs_th=final_abs,
-            perc_pos_th=perc_pos,
-            notes=review_notes,
-        )
+    if st.button("💾 Save Decision to Cloud", type="primary", disabled=st.session_state.get("is_saving", False)):
+        with st.spinner(f"☁️ Saving decision for Core {core_id} to cloud..."):
+            save_target = dm.save_curation_decision(
+                core_id=core_id,
+                decision_type=decision_choice,
+                abs_th=final_abs,
+                perc_pos_th=perc_pos,
+                notes=review_notes,
+            )
 
-        # Clear cached curations so new curation is merged immediately
-        get_curations_dict.clear()
+            # Clear cached curations so new curation is merged immediately
+            get_curations_dict.clear()
 
-        # Cache the feedback message across rerun
-        if final_abs is not None:
-            st.session_state.save_feedback = ("success", f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
-        else:
-            st.session_state.save_feedback = ("warning", f"Core **{core_id}** flagged as Excluded.")
+            # Cache the feedback message across rerun
+            if final_abs is not None:
+                st.session_state.save_feedback = ("success", f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
+            else:
+                st.session_state.save_feedback = ("warning", f"Core **{core_id}** flagged as Excluded.")
 
         st.rerun()
 

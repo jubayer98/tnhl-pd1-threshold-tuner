@@ -106,7 +106,7 @@ class CoreBundle:
         if self.total_cells == 0:
             return np.zeros(0, dtype=bool), 0, 0.0
 
-        if abs_th <= 0.0 and perc_pos_th <= 0.0:
+        if abs_th < 0.0:
             is_pos = np.ones(self.total_cells, dtype=bool)
             return is_pos, self.total_cells, 100.0
 
@@ -117,7 +117,7 @@ class CoreBundle:
             pos_pct = (pos_count / max(self.total_cells, 1)) * 100.0
             return is_pos, pos_count, pos_pct
 
-        # General path for arbitrary perc_pos_th
+        # General path for arbitrary perc_pos_th (ensures cells with 0 positive pixels are never positive)
         pos_pixels_per_label = np.bincount(
             self.seg_flat,
             weights=(self.raw_flat > abs_th).astype(np.float32),
@@ -125,7 +125,8 @@ class CoreBundle:
         )
         cell_pos_pixels = pos_pixels_per_label[self.cell_ids]
         perc_pos = cell_pos_pixels / self.cell_sizes
-        is_pos = perc_pos >= perc_pos_th
+        effective_perc_th = max(perc_pos_th, 1e-4) if perc_pos_th <= 0.0 else perc_pos_th
+        is_pos = (cell_pos_pixels > 0) & (perc_pos >= effective_perc_th)
         pos_count = int(np.sum(is_pos))
         pos_pct = (pos_count / max(self.total_cells, 1)) * 100.0
         return is_pos, pos_count, pos_pct

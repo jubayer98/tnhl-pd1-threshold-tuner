@@ -30,8 +30,8 @@ class TestS3ThresholdEngine(unittest.TestCase):
         self.meta_dir.mkdir(parents=True)
         self.cur_dir.mkdir(parents=True)
 
-        # Create mock core data (100x100 pixels, 10 cells)
-        self.H, self.W = 100, 100
+        # Create mock core data (120x120 pixels, 10 cells)
+        self.H, self.W = 120, 120
         self.raw_pd1 = np.zeros((self.H, self.W), dtype=np.float32)
         self.seg = np.zeros((self.H, self.W), dtype=np.int32)
         self.cell_ids = np.arange(1, 11, dtype=np.int64)
@@ -110,6 +110,11 @@ class TestS3ThresholdEngine(unittest.TestCase):
         is_pos, count, pct = bundle.evaluate_threshold(50.0, 0.5)
         self.assertEqual(count, 1)
         self.assertEqual(pct, 10.0)
+
+        # At abs_th=22 with perc_pos_th=0.0: cells with 0 positive pixels must NOT be positive
+        is_pos_p0, count_p0, pct_p0 = bundle.evaluate_threshold(22.0, 0.0)
+        self.assertEqual(count_p0, 7)
+        self.assertEqual(pct_p0, 70.0)
 
     def test_solve_threshold_for_target_pct(self):
         npz = np.load(self.mock_npz_path)
