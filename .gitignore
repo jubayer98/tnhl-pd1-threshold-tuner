@@ -1,0 +1,8 @@
+# Streamlit secrets (NEVER commit to git)
+.streamlit/secrets.toml
+
+# Python cache & virtualenvs
+__pycache__/
+*.py[cod]
+.DS_Store
+*.swp

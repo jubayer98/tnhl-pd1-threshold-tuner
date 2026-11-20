@@ -1,0 +1,40 @@
+# ==============================================================================
+# Configuration: Cloud PD-1 Interactive Threshold Tuner (AWS S3 + Cloud Host)
+# ==============================================================================
+
+# Local source paths on Mac (used by prepare_and_upload_s3.py for data extraction)
+local_source:
+  zarr_dir: "/Volumes/JubayerUKD/tnhl_codex/io/5_minor_cts_prediction/zarr_files"
+  qc_table: "/Users/jubayer/Development/tnhl-codex/scripts/tma_cores_inventory/output/tnhl-codex-qc-table.xlsx"
+  qc_sheet: "main"
+  qc_header_row: 1
+  keisuke_thresholds: "/Users/jubayer/Development/tnhl-codex/snakemake-codebase/4_binarization/references/keisuke_thresholds.csv"
+  our_thresholds_dir: "/Volumes/JubayerUKD/tnhl_codex/io/4_binarization/categorical_threshold_csvs"
+  clinical_data: "/Volumes/JubayerUKD/tnhl_codex/docs/CODEX_Mutation_ClinicalData_Integration_Ver4_21022025.xlsx"
+  clinical_sheet: "Sheet1"
+  cohort_filter_column: "is_minor_cts_prediction"
+  default_core: "1-4"
+
+# AWS S3 Storage settings (overridable via environment variables or st.secrets)
+s3:
+  bucket: ""                       # e.g., "tnhl-codex-pd1" (set in st.secrets or env var S3_BUCKET)
+  prefix: "tnhl_pd1_tuner"         # Prefix path within the bucket
+  region: "eu-central-1"           # AWS region (or us-east-1)
+  local_data_dir: "../aws_prepared_data"  # Fallback local directory if running locally or before upload
+
+# Visualization settings
+plot:
+  marker: "PD1"
+  ukd_mask_color: "#00B4D8"        # Crisp cyan
+  keisuke_mask_color: "#D97706"    # Rich amber gold
+  custom_pos_color: "#10B981"      # Emerald green
+  custom_neg_color: "#E11D48"      # Vivid rose red
+  mask_alpha: 0.08                 # Interior mask fill opacity
+  mask_alpha_boundary: 1.0         # Cell boundary contour opacity
+  pmin: 3.0                        # Min percentile for normalization
+  pmax: 99.8                       # Max percentile for normalization
+
+# Local export settings for synced curations
+output:
+  local_curations_csv: "outputs/curated_pd1_thresholds.csv"
+  step4_export_dir: "outputs/step4_curated_csvs"
