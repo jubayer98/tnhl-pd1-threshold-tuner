@@ -142,41 +142,31 @@ st.markdown(
         color: var(--text-color) !important;
     }
 
-    /* Universally ensure ALL Plotly SVG text adapts to Light & Dark Mode */
-    .stPlotlyChart {
+    .panel-header-title {
+        font-size: 0.90rem;
+        font-weight: 700;
         color: var(--text-color) !important;
-    }
-    .stPlotlyChart text,
-    .stPlotlyChart tspan {
-        fill: var(--text-color) !important;
-        color: var(--text-color) !important;
+        padding: 4px 6px;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    /* Distinct threshold badge colors in Plotly curve */
-    .stPlotlyChart text .badge-pill-gold,
-    .stPlotlyChart tspan .badge-pill-gold {
-        fill: #F59E0B !important;
-        color: #F59E0B !important;
-    }
-    .stPlotlyChart text .badge-pill-lime,
-    .stPlotlyChart tspan .badge-pill-lime {
-        fill: #10B981 !important;
-        color: #10B981 !important;
-    }
-    .stPlotlyChart text .badge-pill-cyan,
-    .stPlotlyChart tspan .badge-pill-cyan {
-        fill: #00B4D8 !important;
-        color: #00B4D8 !important;
-    }
-    .stPlotlyChart text .badge-pill-rose,
-    .stPlotlyChart tspan .badge-pill-rose {
-        fill: #E11D48 !important;
-        color: #E11D48 !important;
+    /* Response Curve Ticks, Titles & Legends (Adapts to Light & Dark Mode) */
+    .stPlotlyChart .g-xtitle text,
+    .stPlotlyChart .g-ytitle text,
+    .stPlotlyChart .xtick text,
+    .stPlotlyChart .ytick text,
+    .stPlotlyChart .legendtext {
+        fill: var(--text-color) !important;
+        color: var(--text-color) !important;
+        opacity: 0.88;
     }
 
     .stPlotlyChart .xgrid,
     .stPlotlyChart .ygrid {
-        stroke: rgba(128, 128, 128, 0.22) !important;
+        stroke: rgba(128, 128, 128, 0.20) !important;
     }
     .stPlotlyChart .zerolinelayer path {
         stroke: rgba(128, 128, 128, 0.35) !important;
@@ -600,20 +590,22 @@ ukd_hdr = f"Panel 2: UKD ({ukd_abs:.1f})" if ukd_abs is not None else "Panel 2: 
 kei_hdr = f"Panel 3: Keisuke ({kei_abs:.1f})" if kei_abs is not None else "Panel 3: Keisuke (Unreviewed)"
 custom_hdr = f"Panel 4: Custom ({custom_abs:.1f})"
 
+# Distinct native HTML headers aligned perfectly above the 4 panels
+col_h1, col_h2, col_h3, col_h4 = st.columns(4)
+with col_h1:
+    st.markdown('<div class="panel-header-title">Panel 1: Raw PD-1 Staining</div>', unsafe_allow_html=True)
+with col_h2:
+    st.markdown(f'<div class="panel-header-title badge-cyan">{ukd_hdr}</div>', unsafe_allow_html=True)
+with col_h3:
+    st.markdown(f'<div class="panel-header-title badge-gold">{kei_hdr}</div>', unsafe_allow_html=True)
+with col_h4:
+    st.markdown(f'<div class="panel-header-title badge-green">{custom_hdr}</div>', unsafe_allow_html=True)
+
 fig_panels = make_subplots(
     rows=1,
     cols=4,
     horizontal_spacing=0.015,
-    subplot_titles=[
-        '<span class="panel-annot-title">Panel 1: Raw PD-1 Staining</span>',
-        f'<span class="panel-annot-title">{ukd_hdr}</span>',
-        f'<span class="panel-annot-title">{kei_hdr}</span>',
-        f'<span class="panel-annot-title">{custom_hdr}</span>',
-    ],
 )
-
-for ann in fig_panels["layout"]["annotations"]:
-    ann["font"] = dict(size=13.5)
 
 # Add images as high-performance base64 data URIs
 fig_panels.add_trace(go.Image(source=uri_raw, x0=0, y0=0, dx=1, dy=1, hoverinfo="none"), row=1, col=1)
@@ -670,8 +662,8 @@ for i in range(1, 5):
         )
 
 fig_panels.update_layout(
-    height=340,
-    margin=dict(l=10, r=10, t=30, b=5),
+    height=320,
+    margin=dict(l=10, r=10, t=6, b=6),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     dragmode=st.session_state.nav_dragmode,
@@ -779,7 +771,7 @@ if kei_abs is not None:
     fig_curve.add_annotation(
         x=kei_abs,
         y=88,
-        text=f"<span class='badge-pill-gold'><b>Keisuke ({kei_abs:.1f})</b></span>",
+        text=f"<b>Keisuke ({kei_abs:.1f})</b>",
         showarrow=False,
         xanchor=xanc,
         width=140,
@@ -797,7 +789,7 @@ xanc = "left" if custom_abs < 35 else ("right" if custom_abs > 220 else "center"
 fig_curve.add_annotation(
     x=custom_abs,
     y=68,
-    text=f"<span class='badge-pill-lime'><b>Custom ({custom_abs:.1f})</b></span>",
+    text=f"<b>Custom ({custom_abs:.1f})</b>",
     showarrow=False,
     xanchor=xanc,
     width=140,
@@ -816,7 +808,7 @@ if ukd_abs is not None:
     fig_curve.add_annotation(
         x=ukd_abs,
         y=48,
-        text=f"<span class='badge-pill-cyan'><b>UKD ({ukd_abs:.1f})</b></span>",
+        text=f"<b>UKD ({ukd_abs:.1f})</b>",
         showarrow=False,
         xanchor=xanc,
         width=140,
@@ -836,7 +828,7 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
     fig_curve.add_annotation(
         x=210,
         y=ihc_val,
-        text=f"<span class='badge-pill-rose'><b>Clinical IHC ({ihc_val:.1f}%)</b></span>",
+        text=f"<b>Clinical IHC ({ihc_val:.1f}%)</b>",
         showarrow=False,
         xanchor="right",
         yanchor=yanc,
@@ -854,8 +846,18 @@ fig_curve.update_layout(
     margin=dict(l=40, r=40, t=35, b=35),
     xaxis_title="PD-1 Intensity Cutoff (abs_threshold)",
     yaxis_title="Positive Cells (%)",
-    xaxis=dict(range=[0, 255]),
-    yaxis=dict(range=[0, 100]),
+    xaxis=dict(
+        range=[0, 255],
+        showgrid=True,
+        gridcolor="rgba(128, 128, 128, 0.18)",
+        zerolinecolor="rgba(128, 128, 128, 0.25)",
+    ),
+    yaxis=dict(
+        range=[0, 100],
+        showgrid=True,
+        gridcolor="rgba(128, 128, 128, 0.18)",
+        zerolinecolor="rgba(128, 128, 128, 0.25)",
+    ),
     legend=dict(
         orientation="h",
         yanchor="bottom",
@@ -916,9 +918,9 @@ with st.container():
         )
 
         if final_abs is not None:
-            st.success(f"Saved decision for Core **{core_id}**! Threshold: **{final_abs:.1f}** | Saved to `{save_target}`")
+            st.success(f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
         else:
-            st.warning(f"Core **{core_id}** flagged as Excluded in `{save_target}`.")
+            st.warning(f"Core **{core_id}** flagged as Excluded.")
 
 # ------------------------------------------------------------------------------
 # Curated Progress Table
