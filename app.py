@@ -178,13 +178,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "config.yaml"
 
 
-@st.cache_resource(show_spinner=False)
 def get_cached_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-@st.cache_resource(show_spinner=False)
 def get_data_manager() -> S3DataManager:
     cfg = get_cached_config()
     return S3DataManager(cfg)

@@ -138,7 +138,7 @@ class TestS3ThresholdEngine(unittest.TestCase):
     def test_s3_data_manager_local_save(self):
         cfg = {
             "s3": {
-                "bucket": "",
+                "use_s3": False,
                 "local_data_dir": str(self.test_dir),
             }
         }

@@ -210,14 +210,12 @@ class S3DataManager:
         self.cfg = cfg
         self.s3_cfg = cfg.get("s3", {})
 
-        # Check if caller explicitly disabled S3 by setting bucket=""
-        if "bucket" in self.s3_cfg and self.s3_cfg["bucket"] == "":
+        if self.s3_cfg.get("use_s3") is False:
             self.bucket = ""
         else:
-            self.bucket = (
-                self._lookup_secret("bucket_name", "bucket", "s3_bucket", "aws_bucket")
-                or self.s3_cfg.get("bucket", "")
-            )
+            secret_bucket = self._lookup_secret("bucket_name", "bucket", "s3_bucket", "aws_bucket")
+            cfg_bucket = self.s3_cfg.get("bucket", "").strip()
+            self.bucket = secret_bucket or cfg_bucket or "tnhl-pd1-tuner-data"
         self.prefix = (
             self._lookup_secret("s3_prefix", "prefix")
             or self.s3_cfg.get("prefix", "tnhl_pd1_tuner")
