@@ -736,7 +736,7 @@ st.markdown(
 m_c1, m_c2, m_c3, m_c4 = st.columns(4)
 with m_c1:
     tneo_annot = (
-        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo Core: <b style="color: #6366F1;">{tneo_str}</b> ({tneo_cells:,} cells)</span>'
+        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo: <b style="color: #6366F1;">{tneo_str}</b> ({tneo_cells:,} cells) / Core</span>'
         if tneo_str != "N/A" and tneo_str != "0.0%"
         else '<span class="metric-card-sub">Pathology estimate</span>'
     )
