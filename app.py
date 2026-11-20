@@ -718,38 +718,132 @@ fig_curve.add_trace(
     )
 )
 
+# Legend proxies for threshold markers
 if ukd_abs is not None:
-    fig_curve.add_vline(
-        x=ukd_abs,
-        line=dict(color="#00B4D8", dash="dash", width=2),
-        annotation_text=f"UKD ({ukd_abs:.1f})",
+    fig_curve.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=f"UKD ({ukd_abs:.1f})",
+            line=dict(color="#00B4D8", dash="dash", width=2),
+        )
     )
 if kei_abs is not None:
-    fig_curve.add_vline(
-        x=kei_abs,
-        line=dict(color="#D97706", dash="dash", width=2),
-        annotation_text=f"Keisuke ({kei_abs:.1f})",
+    fig_curve.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=f"Keisuke ({kei_abs:.1f})",
+            line=dict(color="#D97706", dash="dash", width=2),
+        )
     )
-fig_curve.add_vline(
+fig_curve.add_trace(
+    go.Scatter(
+        x=[None],
+        y=[None],
+        mode="lines",
+        name=f"Custom ({custom_abs:.1f})",
+        line=dict(color="#10B981", width=3),
+    )
+)
+if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
+    fig_curve.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=f"Clinical IHC ({float(current_row['ihc_val']):.1f}%)",
+            line=dict(color="#E11D48", dash="dot", width=2),
+        )
+    )
+
+# Staggered vertical markers with non-overlapping pill badges
+# Level 1 (y=88): Keisuke (Amber Gold)
+if kei_abs is not None:
+    fig_curve.add_vline(x=kei_abs, line=dict(color="#D97706", dash="dash", width=2))
+    xanc = "left" if kei_abs < 35 else ("right" if kei_abs > 220 else "center")
+    fig_curve.add_annotation(
+        x=kei_abs,
+        y=88,
+        text=f"<b>Keisuke ({kei_abs:.1f})</b>",
+        showarrow=False,
+        xanchor=xanc,
+        font=dict(color="#D97706", size=11),
+        bgcolor="rgba(217, 119, 6, 0.15)",
+        bordercolor="#D97706",
+        borderwidth=1,
+        borderpad=3,
+    )
+
+# Level 2 (y=68): Custom (Lime Green)
+fig_curve.add_vline(x=custom_abs, line=dict(color="#10B981", width=3))
+xanc = "left" if custom_abs < 35 else ("right" if custom_abs > 220 else "center")
+fig_curve.add_annotation(
     x=custom_abs,
-    line=dict(color="#10B981", width=3),
-    annotation_text=f"Custom ({custom_abs:.1f})",
+    y=68,
+    text=f"<b>Custom ({custom_abs:.1f})</b>",
+    showarrow=False,
+    xanchor=xanc,
+    font=dict(color="#10B981", size=11),
+    bgcolor="rgba(16, 185, 129, 0.15)",
+    bordercolor="#10B981",
+    borderwidth=1,
+    borderpad=3,
 )
 
+# Level 3 (y=48): UKD (Cyan)
+if ukd_abs is not None:
+    fig_curve.add_vline(x=ukd_abs, line=dict(color="#00B4D8", dash="dash", width=2))
+    xanc = "left" if ukd_abs < 35 else ("right" if ukd_abs > 220 else "center")
+    fig_curve.add_annotation(
+        x=ukd_abs,
+        y=48,
+        text=f"<b>UKD ({ukd_abs:.1f})</b>",
+        showarrow=False,
+        xanchor=xanc,
+        font=dict(color="#00B4D8", size=11),
+        bgcolor="rgba(0, 180, 216, 0.15)",
+        bordercolor="#00B4D8",
+        borderwidth=1,
+        borderpad=3,
+    )
+
+# Clinical IHC Reference (Rose Red)
 if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
-    fig_curve.add_hline(
-        y=float(current_row["ihc_val"]),
-        line=dict(color="#E11D48", dash="dot", width=2),
-        annotation_text=f"Clinical IHC ({current_row['ihc_val']:.1f}%)",
+    ihc_val = float(current_row["ihc_val"])
+    fig_curve.add_hline(y=ihc_val, line=dict(color="#E11D48", dash="dot", width=2))
+    yanc = "bottom" if ihc_val < 85 else "top"
+    fig_curve.add_annotation(
+        x=210,
+        y=ihc_val,
+        text=f"<b>Clinical IHC ({ihc_val:.1f}%)</b>",
+        showarrow=False,
+        xanchor="right",
+        yanchor=yanc,
+        font=dict(color="#E11D48", size=11),
+        bgcolor="rgba(225, 29, 72, 0.15)",
+        bordercolor="#E11D48",
+        borderwidth=1,
+        borderpad=3,
     )
 
 fig_curve.update_layout(
-    height=240,
-    margin=dict(l=35, r=35, t=20, b=30),
+    height=270,
+    margin=dict(l=40, r=40, t=35, b=35),
     xaxis_title="PD-1 Intensity Cutoff (abs_threshold)",
     yaxis_title="Positive Cells (%)",
     xaxis=dict(range=[0, 255]),
     yaxis=dict(range=[0, 100]),
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="center",
+        x=0.5,
+        font=dict(size=11),
+    ),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
 )
