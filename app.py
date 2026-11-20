@@ -84,6 +84,9 @@ st.markdown(
         border-left: 3.5px solid #8B5CF6 !important;
         flex-grow: 1;
     }
+    .stat-chip-tneo {
+        border-left: 3.5px solid #6366F1 !important;
+    }
     .stat-chip-cells {
         border-left: 3.5px solid #10B981 !important;
     }
@@ -670,6 +673,11 @@ diagnosis = current_row["diagnosis"]
 subtype = current_row["subtype"]
 total_cells = bundle.total_cells
 
+tneo_def = str(current_row.get("tneo_def", "N/A"))
+tneo_pd1_str = str(current_row.get("tneo_pd1_str", "N/A"))
+raw_tneo_ratio = current_row.get("tneo_pd1_ratio")
+tneo_pd1_pct = float(raw_tneo_ratio) * 100.0 if pd.notna(raw_tneo_ratio) and raw_tneo_ratio is not None else None
+
 ukd_abs = current_row["our_abs_th"]
 kei_abs = current_row["kei_abs_th"]
 custom_abs = float(st.session_state.custom_abs_th)
@@ -705,6 +713,10 @@ st.markdown(
             <span class="stat-chip-label">Pathology Diagnosis</span>
             <span class="stat-chip-val">{diagnosis} <span class="stat-chip-sub">({subtype})</span></span>
         </div>
+        <div class="stat-chip stat-chip-tneo">
+            <span class="stat-chip-label">Neoplastic Phenotype</span>
+            <span class="stat-chip-val" style="color: #6366F1;">{tneo_def}</span>
+        </div>
         <div class="stat-chip stat-chip-cells">
             <span class="stat-chip-label">Total Segmented Cells</span>
             <span class="stat-chip-val" style="color: #10B981;">{total_cells:,}</span>
@@ -714,31 +726,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-m_c1, m_c2, m_c3, m_c4 = st.columns(4)
+m_c1, m_c2, m_c3, m_c4, m_c5 = st.columns(5)
 with m_c1:
     st.markdown(
         f'<div class="metric-card"><div class="metric-card-title"><b>Clinical IHC PD-1</b></div>'
         f'<h2 style="color: var(--text-color); margin: 2px 0;">{ihc_str}</h2>'
-        f'<span class="metric-card-sub">Raw image</span></div>',
+        f'<span class="metric-card-sub">Pathology estimate</span></div>',
         unsafe_allow_html=True,
     )
 with m_c2:
+    st.markdown(
+        f'<div class="metric-card"><div class="metric-card-title"><b>Pipeline Tneo PD-1</b></div>'
+        f'<h2 style="color: #6366F1; margin: 2px 0;">{tneo_pd1_str}</h2>'
+        f'<span class="metric-card-sub">Neoplastic T cells</span></div>',
+        unsafe_allow_html=True,
+    )
+with m_c3:
     ukd_label = f"abs_th={ukd_abs:.1f}" if ukd_abs is not None else "N/A"
     st.markdown(
-        f'<div class="metric-card"><div class="metric-card-title"><b>UKD Pipeline (<span class="badge-cyan">Cyan</span>)</b></div>'
+        f'<div class="metric-card"><div class="metric-card-title"><b>UKD Whole-Core (<span class="badge-cyan">Cyan</span>)</b></div>'
         f'<h2 style="color:#00B4D8; margin: 2px 0;">{pct_ukd:.1f}%</h2>'
         f'<span class="metric-card-sub">{n_ukd:,} cells ({ukd_label})</span></div>',
         unsafe_allow_html=True,
     )
-with m_c3:
+with m_c4:
     kei_label = f"abs_th={kei_abs:.1f}" if kei_abs is not None else "N/A"
     st.markdown(
-        f'<div class="metric-card"><div class="metric-card-title"><b>Keisuke Reviewer (<span class="badge-gold">Gold</span>)</b></div>'
+        f'<div class="metric-card"><div class="metric-card-title"><b>Keisuke Whole-Core (<span class="badge-gold">Gold</span>)</b></div>'
         f'<h2 style="color:#D97706; margin: 2px 0;">{pct_kei:.1f}%</h2>'
         f'<span class="metric-card-sub">{n_kei:,} cells ({kei_label})</span></div>',
         unsafe_allow_html=True,
     )
-with m_c4:
+with m_c5:
     st.markdown(
         f'<div class="metric-card"><div class="metric-card-title"><b>Interactive Custom (<span class="badge-green">Lime</span>)</b></div>'
         f'<h2 style="color:#10B981; margin: 2px 0;">{pct_custom:.1f}%</h2>'
@@ -934,6 +953,8 @@ c_ukd = "#0284C7"             # Dark Sky Blue / Cyan
 bg_ukd = "rgba(0, 180, 216, 0.15)"
 c_ihc = "#BE123C"             # Dark Crimson Rose
 bg_ihc = "rgba(225, 29, 72, 0.15)"
+c_tneo = "#6366F1"            # Indigo
+bg_tneo = "rgba(99, 102, 241, 0.15)"
 
 # Fetch cached response curve (vectorized, <1ms)
 sweep_ths, sweep_pcts = get_cached_response_curve(
@@ -991,6 +1012,16 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
             mode="lines",
             name=f"Clinical IHC ({float(current_row['ihc_val']):.1f}%)",
             line=dict(color=c_ihc, dash="dot", width=2),
+        )
+    )
+if tneo_pd1_pct is not None:
+    fig_curve.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=f"Pipeline Tneo ({tneo_pd1_pct:.1f}%)",
+            line=dict(color=c_tneo, dash="dashdot", width=2),
         )
     )
 
@@ -1068,6 +1099,26 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
         font=dict(color=c_ihc, size=11),
         bgcolor=bg_ihc,
         bordercolor=c_ihc,
+        borderwidth=1.5,
+        borderpad=6,
+    )
+
+# Pipeline Tneo PD-1 Reference (Indigo)
+if tneo_pd1_pct is not None:
+    fig_curve.add_hline(y=tneo_pd1_pct, line=dict(color=c_tneo, dash="dashdot", width=2))
+    yanc_tneo = "bottom" if tneo_pd1_pct < 85 else "top"
+    fig_curve.add_annotation(
+        x=45,
+        y=tneo_pd1_pct,
+        text=f"<b>Pipeline Tneo ({tneo_pd1_pct:.1f}%)</b>",
+        showarrow=False,
+        xanchor="left",
+        yanchor=yanc_tneo,
+        width=170,
+        align="center",
+        font=dict(color=c_tneo, size=11),
+        bgcolor=bg_tneo,
+        bordercolor=c_tneo,
         borderwidth=1.5,
         borderpad=6,
     )

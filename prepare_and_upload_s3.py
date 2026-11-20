@@ -136,6 +136,16 @@ def index_cohort_metadata(cfg: Dict[str, Any]) -> pd.DataFrame:
         raw_ihc = row.get(col_n_name, row.get("PD1_IHC"))
         num_ihc, disp_ihc, is_valid_ihc = parse_ihc_value(raw_ihc)
 
+        # Tneo neoplastic phenotype and PD-1 ratio
+        tneo_def = str(row.get("tneo_def", "")).strip() if pd.notna(row.get("tneo_def")) else "N/A"
+        tneo_markers = str(row.get("tneo_markers", "")).strip() if pd.notna(row.get("tneo_markers")) else "N/A"
+        raw_tneo_ratio = row.get("T Neo PD1 ratio_4th")
+        try:
+            tneo_ratio = float(raw_tneo_ratio) if pd.notna(raw_tneo_ratio) else None
+        except (ValueError, TypeError):
+            tneo_ratio = None
+        tneo_str = f"{tneo_ratio * 100:.1f}%" if tneo_ratio is not None else "N/A"
+
         k_info = kei_dict.get(c_name, {})
         k_abs = k_info.get("lower")
         k_perc = k_info.get("threshold", 0.5)
@@ -160,6 +170,10 @@ def index_cohort_metadata(cfg: Dict[str, Any]) -> pd.DataFrame:
             "ihc_val": num_ihc,
             "ihc_str": disp_ihc,
             "is_valid_ihc": is_valid_ihc,
+            "tneo_def": tneo_def,
+            "tneo_markers": tneo_markers,
+            "tneo_pd1_ratio": tneo_ratio,
+            "tneo_pd1_str": tneo_str,
             "zarr_path": str(zarr_map[c_name]),
             "our_abs_th": float(o_abs) if pd.notna(o_abs) else None,
             "our_perc_pos_th": float(o_perc) if pd.notna(o_perc) else 0.5,
