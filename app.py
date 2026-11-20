@@ -1177,13 +1177,13 @@ def render_decision_card(
 
 render_decision_card(core_id, next_core_id, ukd_abs, kei_abs)
 
-    # Display feedback message if present
-    if "save_feedback" in st.session_state:
-        msg_type, msg_text = st.session_state.pop("save_feedback")
-        if msg_type == "success":
-            st.success(msg_text)
-        else:
-            st.warning(msg_text)
+# Display feedback message if present
+if "save_feedback" in st.session_state:
+    msg_type, msg_text = st.session_state.pop("save_feedback")
+    if msg_type == "success":
+        st.success(msg_text)
+    else:
+        st.warning(msg_text)
 
 # ------------------------------------------------------------------------------
 # Curated Progress Table
