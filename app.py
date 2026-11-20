@@ -315,8 +315,10 @@ df_cohort = get_cohort_dataframe()
 # Session State Initialization
 # ------------------------------------------------------------------------------
 if "current_core_id" not in st.session_state:
-    st.session_state.current_core_id = cfg.get("local_source", {}).get("default_core", "1-4")
-    if st.session_state.current_core_id not in df_cohort["core_id"].values:
+    default_cid = cfg.get("local_source", {}).get("default_core", "1-1")
+    if default_cid in df_cohort["core_id"].values:
+        st.session_state.current_core_id = default_cid
+    else:
         st.session_state.current_core_id = df_cohort["core_id"].iloc[0]
 
 if "last_core_id" not in st.session_state:

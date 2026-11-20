@@ -13,7 +13,7 @@ local_source:
   clinical_data: "/Volumes/JubayerUKD/tnhl_codex/docs/CODEX_Mutation_ClinicalData_Integration_Ver4_21022025.xlsx"
   clinical_sheet: "Sheet1"
   cohort_filter_column: "is_minor_cts_prediction"
-  default_core: "1-4"
+  default_core: "1-1"
 
 # AWS S3 Storage settings (overridable via environment variables or st.secrets)
 s3:
