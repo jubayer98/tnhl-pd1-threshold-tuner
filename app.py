@@ -202,11 +202,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "config.yaml"
 
 
+@st.cache_data(show_spinner=False)
 def get_cached_config() -> Dict[str, Any]:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
+@st.cache_resource(show_spinner=False)
 def get_data_manager() -> S3DataManager:
     cfg = get_cached_config()
     return S3DataManager(cfg)
@@ -348,6 +350,12 @@ if "show_neg" not in st.session_state:
 if "hide_masks" not in st.session_state:
     st.session_state.hide_masks = False
 
+if "alpha_fill" not in st.session_state:
+    st.session_state.alpha_fill = float(cfg["plot"].get("mask_alpha", 0.08))
+
+if "alpha_bound" not in st.session_state:
+    st.session_state.alpha_bound = float(cfg["plot"].get("mask_alpha_boundary", 1.0))
+
 if "zoom_reset_token" not in st.session_state:
     st.session_state.zoom_reset_token = 0
 
@@ -486,32 +494,46 @@ with st.sidebar:
     st.markdown("---")
 
     # Continuous Slider (0 to 255, step 1)
-    custom_slider = st.slider(
+    st.slider(
         "Custom abs_threshold:",
         min_value=0.0,
         max_value=255.0,
-        value=float(min(255.0, max(0.0, st.session_state.custom_abs_th))),
         step=1.0,
+        key="custom_abs_th",
+        help="Intensity cutoff above which pixels are considered positive for PD-1 (0 to 255)",
     )
-    if custom_slider != st.session_state.custom_abs_th:
-        st.session_state.custom_abs_th = custom_slider
 
     # Display toggles
     st.markdown("---")
     st.write("**Display Toggles:**")
-    st.session_state.show_neg = st.checkbox("Show Negative Cell Outlines (Red)", value=st.session_state.show_neg)
-    st.session_state.hide_masks = st.checkbox("Hide All Masks (Inspect Raw Signal)", value=st.session_state.hide_masks)
+    st.checkbox("Show Negative Cell Outlines (Red)", key="show_neg")
+    st.checkbox("Hide All Masks (Inspect Raw Signal)", key="hide_masks")
 
     with st.expander("⚙️ Advanced Settings"):
-        st.session_state.perc_pos_th = st.slider(
+        st.slider(
             "perc_pos_threshold:",
-            min_value=0.05,
-            max_value=0.95,
-            value=float(st.session_state.perc_pos_th),
-            step=0.05,
+            min_value=0.0,
+            max_value=1.0,
+            step=0.01,
+            key="perc_pos_th",
+            help="Fraction of positive pixels in a cell to mark it positive (0.0 to 1.0, default 0.50)",
         )
-        alpha_fill = st.slider("Mask Interior Alpha:", 0.0, 0.4, float(cfg["plot"].get("mask_alpha", 0.08)), 0.02)
-        alpha_bound = st.slider("Mask Boundary Alpha:", 0.2, 1.0, float(cfg["plot"].get("mask_alpha_boundary", 1.0)), 0.1)
+        st.slider(
+            "Mask Interior Alpha:",
+            min_value=0.0,
+            max_value=0.4,
+            step=0.02,
+            key="alpha_fill",
+            help="Opacity of positive cell body shading",
+        )
+        st.slider(
+            "Mask Boundary Alpha:",
+            min_value=0.2,
+            max_value=1.0,
+            step=0.1,
+            key="alpha_bound",
+            help="Opacity of cell contour boundary outline",
+        )
 
 # ------------------------------------------------------------------------------
 # Main Content: Header & Metrics
@@ -526,6 +548,8 @@ ukd_abs = current_row["our_abs_th"]
 kei_abs = current_row["kei_abs_th"]
 custom_abs = float(st.session_state.custom_abs_th)
 perc_pos = float(st.session_state.perc_pos_th)
+alpha_fill = float(st.session_state.alpha_fill)
+alpha_bound = float(st.session_state.alpha_bound)
 
 # Live evaluations
 is_pos_ukd, n_ukd, pct_ukd = bundle.evaluate_threshold(ukd_abs or 999.0, perc_pos) if ukd_abs else (None, 0, 0.0)

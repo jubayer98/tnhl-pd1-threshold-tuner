@@ -59,7 +59,7 @@ def pil_to_data_uri(img: Optional[Image.Image]) -> str:
     if img is None:
         img = Image.new("RGB", (10, 10), (15, 18, 24))
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=False)
+    img.save(buf, format="PNG", compress_level=1, optimize=False)
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{b64}"
 
