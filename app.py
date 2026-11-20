@@ -396,19 +396,24 @@ if st.session_state.get("pending_accept"):
                 notes=action["note"],
             )
             get_curations_dict.clear()
-            st.session_state.custom_abs_th = action["th"]
+            if action["th"] is not None:
+                st.session_state.custom_abs_th = float(action["th"])
+                th_desc = f"(cutoff: **{action['th']:.1f}**)"
+            else:
+                th_desc = "(Excluded)"
+
             if action["next_cid"]:
                 st.session_state.current_core_id = action["next_cid"]
                 st.session_state.selected_core_dropdown = action["next_cid"]
                 st.session_state[f"notes_{action['next_cid']}"] = ""
                 st.session_state.save_feedback = (
                     "success",
-                    f"Saved {action['type']} for Core **{action['cid']}** (cutoff: **{action['th']:.1f}**)! Loaded Core **{action['next_cid']}**.",
+                    f"Saved {action['type']} for Core **{action['cid']}** {th_desc}! Loaded Core **{action['next_cid']}**.",
                 )
             else:
                 st.session_state.save_feedback = (
                     "success",
-                    f"Saved {action['type']} for Core **{action['cid']}** (cutoff: **{action['th']:.1f}**)! All cores in current filter completed! 🎉",
+                    f"Saved {action['type']} for Core **{action['cid']}** {th_desc}! All cores in current filter completed! 🎉",
                 )
         except Exception as exc:
             st.session_state.save_feedback = ("error", f"Error saving decision: {exc}")
@@ -1092,26 +1097,39 @@ if note_key not in st.session_state:
     st.session_state[note_key] = ""
 
 with st.container():
+    def queue_manual_save(cid: str, next_cid: Optional[str]):
+        choice = st.session_state.get("manual_decision_choice", "Accept Custom Threshold")
+        if choice == "Accept UKD":
+            f_abs = float(ukd_abs) if ukd_abs is not None else None
+        elif choice == "Accept Keisuke":
+            f_abs = float(kei_abs) if kei_abs is not None else None
+        elif choice == "Accept Custom Threshold":
+            f_abs = float(st.session_state.custom_abs_th)
+        else:
+            f_abs = None
+
+        st.session_state.pending_accept = {
+            "type": choice,
+            "cid": cid,
+            "th": f_abs,
+            "perc": float(st.session_state.perc_pos_th),
+            "note": st.session_state.get(f"notes_{cid}", ""),
+            "next_cid": next_cid,
+        }
+        st.session_state.is_saving = True
+
     c_dec1, c_dec2 = st.columns([1, 2])
 
     with c_dec1:
-        decision_choice = st.radio(
+        st.radio(
             "Select Decision:",
             options=["Accept UKD", "Accept Keisuke", "Accept Custom Threshold", "Flag / Exclude Core"],
             index=2,
+            key="manual_decision_choice",
         )
 
-        if decision_choice == "Accept UKD":
-            final_abs = ukd_abs
-        elif decision_choice == "Accept Keisuke":
-            final_abs = kei_abs
-        elif decision_choice == "Accept Custom Threshold":
-            final_abs = custom_abs
-        else:
-            final_abs = None
-
     with c_dec2:
-        review_notes = st.text_area(
+        st.text_area(
             "Reviewer Notes / Rational:",
             value=st.session_state.get(note_key, ""),
             key=note_key,
@@ -1119,26 +1137,15 @@ with st.container():
             height=90,
         )
 
-    if st.button("💾 Save Decision to Cloud", type="primary", disabled=st.session_state.get("is_saving", False)):
-        with st.spinner(f"☁️ Saving decision for Core {core_id} to cloud..."):
-            save_target = dm.save_curation_decision(
-                core_id=core_id,
-                decision_type=decision_choice,
-                abs_th=final_abs,
-                perc_pos_th=perc_pos,
-                notes=review_notes,
-            )
-
-            # Clear cached curations so new curation is merged immediately
-            get_curations_dict.clear()
-
-            # Cache the feedback message across rerun
-            if final_abs is not None:
-                st.session_state.save_feedback = ("success", f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
-            else:
-                st.session_state.save_feedback = ("warning", f"Core **{core_id}** flagged as Excluded.")
-
-        st.rerun()
+    st.button(
+        "💾 Save Decision to Cloud ➡",
+        type="primary",
+        disabled=st.session_state.get("is_saving", False),
+        key="btn_save_manual_cloud",
+        on_click=queue_manual_save,
+        args=(core_id, next_core_id),
+        help="Save curation decision to cloud and automatically advance to the next sample",
+    )
 
     # Display feedback message if present
     if "save_feedback" in st.session_state:
