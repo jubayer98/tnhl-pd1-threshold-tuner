@@ -581,21 +581,41 @@ with st.sidebar:
 
     st.write("**Manual Review Presets:**")
 
-    if st.button("Use Midpoint (UKD / Keisuke)", help="Average of UKD and Keisuke cutoffs (applies cutoff for manual review without auto-saving)"):
-        if pd.notna(current_row["our_abs_th"]) and pd.notna(current_row["kei_abs_th"]):
-            st.session_state.custom_abs_th = float(
-                round(0.5 * (current_row["our_abs_th"] + current_row["kei_abs_th"]), 1)
-            )
-            st.rerun()
+    def apply_midpoint(val: float):
+        st.session_state.custom_abs_th = val
+
+    def apply_automatch(val: float):
+        st.session_state.custom_abs_th = val
+
+    midpoint_val = (
+        float(round(0.5 * (current_row["our_abs_th"] + current_row["kei_abs_th"]), 1))
+        if pd.notna(current_row["our_abs_th"]) and pd.notna(current_row["kei_abs_th"])
+        else None
+    )
+    st.button(
+        "Use Midpoint (UKD / Keisuke)",
+        disabled=midpoint_val is None,
+        key="btn_apply_midpoint",
+        on_click=apply_midpoint,
+        args=(midpoint_val or 0.0,),
+        help="Average of UKD and Keisuke cutoffs (applies cutoff for manual review without auto-saving)",
+    )
 
     ihc_lbl = current_row["ihc_str"]
-    if st.button(f"Auto-Match Clinical IHC % ({ihc_lbl})", help="Analytical solver matching Clinical IHC % (applies cutoff for manual review without auto-saving)"):
-        if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
-            solved_th = bundle.solve_threshold_for_target_pct(
-                float(current_row["ihc_val"]), float(st.session_state.perc_pos_th)
-            )
-            st.session_state.custom_abs_th = float(solved_th)
-            st.rerun()
+    has_ihc = current_row["is_valid_ihc"] and current_row["ihc_val"] is not None
+    solved_ihc_th = (
+        float(bundle.solve_threshold_for_target_pct(float(current_row["ihc_val"]), float(st.session_state.perc_pos_th)))
+        if has_ihc
+        else None
+    )
+    st.button(
+        f"Auto-Match Clinical IHC % ({ihc_lbl})",
+        disabled=not has_ihc or solved_ihc_th is None,
+        key="btn_apply_automatch",
+        on_click=apply_automatch,
+        args=(solved_ihc_th or 0.0,),
+        help="Analytical solver matching Clinical IHC % (applies cutoff for manual review without auto-saving)",
+    )
 
     st.markdown("---")
 
@@ -743,9 +763,10 @@ with sync_hdr_col2:
     )
     st.session_state.nav_dragmode = "zoom" if "Zoom" in mode_selection else "pan"
 with sync_hdr_col3:
-    if st.button("↺ Reset View", width="stretch", help="Reset zoom back to full view"):
+    def reset_zoom_view():
         st.session_state.zoom_reset_token = st.session_state.get("zoom_reset_token", 0) + 1
-        st.rerun()
+
+    st.button("↺ Reset View", width="stretch", key="btn_reset_zoom", on_click=reset_zoom_view, help="Reset zoom back to full view")
 
 color_ukd = cfg["plot"].get("ukd_mask_color", "#00B4D8")
 color_kei = cfg["plot"].get("keisuke_mask_color", "#D97706")
@@ -1088,21 +1109,26 @@ fig_curve.update_layout(
 st.plotly_chart(fig_curve, width="stretch", config={"displayModeBar": False}, theme=None)
 
 # ------------------------------------------------------------------------------
-# Reviewer Decision Card
+# Reviewer Decision Card (Isolated Fragment: Zero Full-Page Rerun on Radio / Typing)
 # ------------------------------------------------------------------------------
-st.markdown("### 🔬 Record Reviewer Decision")
+@st.fragment
+def render_decision_card(
+    cid: str,
+    next_cid: Optional[str],
+    ukd_cutoff: Optional[float],
+    kei_cutoff: Optional[float],
+):
+    st.markdown("### 🔬 Record Reviewer Decision")
+    note_key = f"notes_{cid}"
+    if note_key not in st.session_state:
+        st.session_state[note_key] = ""
 
-note_key = f"notes_{core_id}"
-if note_key not in st.session_state:
-    st.session_state[note_key] = ""
-
-with st.container():
-    def queue_manual_save(cid: str, next_cid: Optional[str]):
+    def queue_manual_save():
         choice = st.session_state.get("manual_decision_choice", "Accept Custom Threshold")
         if choice == "Accept UKD":
-            f_abs = float(ukd_abs) if ukd_abs is not None else None
+            f_abs = float(ukd_cutoff) if ukd_cutoff is not None else None
         elif choice == "Accept Keisuke":
-            f_abs = float(kei_abs) if kei_abs is not None else None
+            f_abs = float(kei_cutoff) if kei_cutoff is not None else None
         elif choice == "Accept Custom Threshold":
             f_abs = float(st.session_state.custom_abs_th)
         else:
@@ -1113,39 +1139,43 @@ with st.container():
             "cid": cid,
             "th": f_abs,
             "perc": float(st.session_state.perc_pos_th),
-            "note": st.session_state.get(f"notes_{cid}", ""),
+            "note": st.session_state.get(note_key, ""),
             "next_cid": next_cid,
         }
         st.session_state.is_saving = True
+        st.rerun(scope="app")
 
-    c_dec1, c_dec2 = st.columns([1, 2])
+    with st.container():
+        c_dec1, c_dec2 = st.columns([1, 2])
 
-    with c_dec1:
-        st.radio(
-            "Select Decision:",
-            options=["Accept UKD", "Accept Keisuke", "Accept Custom Threshold", "Flag / Exclude Core"],
-            index=2,
-            key="manual_decision_choice",
+        with c_dec1:
+            st.radio(
+                "Select Decision:",
+                options=["Accept UKD", "Accept Keisuke", "Accept Custom Threshold", "Flag / Exclude Core"],
+                index=2,
+                key="manual_decision_choice",
+            )
+
+        with c_dec2:
+            st.text_area(
+                "Reviewer Notes / Rational:",
+                value=st.session_state.get(note_key, ""),
+                key=note_key,
+                placeholder="Enter rationale for threshold decision or specific core observations (cleared on core change)...",
+                height=90,
+            )
+
+        st.button(
+            "💾 Save Decision to Cloud ➡",
+            type="primary",
+            disabled=st.session_state.get("is_saving", False),
+            key="btn_save_manual_cloud",
+            on_click=queue_manual_save,
+            help="Save curation decision to cloud and automatically advance to the next sample",
         )
 
-    with c_dec2:
-        st.text_area(
-            "Reviewer Notes / Rational:",
-            value=st.session_state.get(note_key, ""),
-            key=note_key,
-            placeholder="Enter rationale for threshold decision or specific core observations (cleared on core change)...",
-            height=90,
-        )
 
-    st.button(
-        "💾 Save Decision to Cloud ➡",
-        type="primary",
-        disabled=st.session_state.get("is_saving", False),
-        key="btn_save_manual_cloud",
-        on_click=queue_manual_save,
-        args=(core_id, next_core_id),
-        help="Save curation decision to cloud and automatically advance to the next sample",
-    )
+render_decision_card(core_id, next_core_id, ukd_abs, kei_abs)
 
     # Display feedback message if present
     if "save_feedback" in st.session_state:
