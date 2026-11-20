@@ -459,23 +459,95 @@ with st.sidebar:
 
     current_row = df_cohort[df_cohort["core_id"] == st.session_state.current_core_id].iloc[0]
     bundle = get_core_bundle(current_row["core_id"])
+    cid_to_save = str(current_row["core_id"]).strip()
+
+    def advance_to_next_core() -> Optional[str]:
+        if current_idx < len(core_list) - 1:
+            next_id = core_list[current_idx + 1]
+            st.session_state.current_core_id = next_id
+            st.session_state.selected_core_dropdown = next_id
+            st.session_state[f"notes_{next_id}"] = ""
+            return next_id
+        return None
 
     # Quick Presets: One option per line
-    st.write("**Quick Presets (one click):**")
+    st.write("**Quick Presets (1-Click Accept & Advance):**")
 
     ukd_lbl = f"{current_row['our_abs_th']:.1f}" if pd.notna(current_row["our_abs_th"]) else "N/A"
-    if st.button(f"Use UKD ({ukd_lbl})", help="Set threshold to UKD pipeline cutoff"):
-        if pd.notna(current_row["our_abs_th"]):
-            st.session_state.custom_abs_th = float(current_row["our_abs_th"])
-            st.rerun()
+    has_ukd = pd.notna(current_row["our_abs_th"])
+    if st.button(
+        f"⚡ Accept UKD ({ukd_lbl}) & Next ➡",
+        disabled=not has_ukd,
+        help="One-click workflow: Apply UKD threshold, save decision to cloud, and advance to next core",
+    ):
+        th_val = float(current_row["our_abs_th"])
+        st.session_state.custom_abs_th = th_val
+
+        # 1. Save directly to cloud and verify completion
+        dm.save_curation_decision(
+            core_id=cid_to_save,
+            decision_type="Accept UKD",
+            abs_th=th_val,
+            perc_pos_th=float(st.session_state.perc_pos_th),
+            notes=st.session_state.get(f"notes_{cid_to_save}", ""),
+        )
+
+        # 2. Invalidate curations cache so the decision is immediately merged
+        get_curations_dict.clear()
+
+        # 3. Advance to next core
+        next_core = advance_to_next_core()
+        if next_core:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved UKD decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! Loaded Core **{next_core}**.",
+            )
+        else:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved UKD decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! All cores in current filter completed! 🎉",
+            )
+        st.rerun()
 
     kei_lbl = f"{current_row['kei_abs_th']:.1f}" if pd.notna(current_row["kei_abs_th"]) else "N/A"
-    if st.button(f"Use Keisuke ({kei_lbl})", help="Set threshold to Keisuke reviewer cutoff"):
-        if pd.notna(current_row["kei_abs_th"]):
-            st.session_state.custom_abs_th = float(current_row["kei_abs_th"])
-            st.rerun()
+    has_kei = pd.notna(current_row["kei_abs_th"])
+    if st.button(
+        f"⚡ Accept Keisuke ({kei_lbl}) & Next ➡",
+        disabled=not has_kei,
+        help="One-click workflow: Apply Keisuke threshold, save decision to cloud, and advance to next core",
+    ):
+        th_val = float(current_row["kei_abs_th"])
+        st.session_state.custom_abs_th = th_val
 
-    if st.button("Use Midpoint (UKD / Keisuke)", help="Average of UKD and Keisuke cutoffs"):
+        # 1. Save directly to cloud and verify completion
+        dm.save_curation_decision(
+            core_id=cid_to_save,
+            decision_type="Accept Keisuke",
+            abs_th=th_val,
+            perc_pos_th=float(st.session_state.perc_pos_th),
+            notes=st.session_state.get(f"notes_{cid_to_save}", ""),
+        )
+
+        # 2. Invalidate curations cache so the decision is immediately merged
+        get_curations_dict.clear()
+
+        # 3. Advance to next core
+        next_core = advance_to_next_core()
+        if next_core:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved Keisuke decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! Loaded Core **{next_core}**.",
+            )
+        else:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved Keisuke decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! All cores in current filter completed! 🎉",
+            )
+        st.rerun()
+
+    st.write("**Manual Review Presets (Apply Only):**")
+
+    if st.button("Use Midpoint (UKD / Keisuke)", help="Average of UKD and Keisuke cutoffs (applies cutoff for manual review without auto-saving)"):
         if pd.notna(current_row["our_abs_th"]) and pd.notna(current_row["kei_abs_th"]):
             st.session_state.custom_abs_th = float(
                 round(0.5 * (current_row["our_abs_th"] + current_row["kei_abs_th"]), 1)
@@ -483,7 +555,7 @@ with st.sidebar:
             st.rerun()
 
     ihc_lbl = current_row["ihc_str"]
-    if st.button(f"Auto-Match Clinical IHC % ({ihc_lbl})", help="Analytical solver matching Clinical IHC %"):
+    if st.button(f"Auto-Match Clinical IHC % ({ihc_lbl})", help="Analytical solver matching Clinical IHC % (applies cutoff for manual review without auto-saving)"):
         if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
             solved_th = bundle.solve_threshold_for_target_pct(
                 float(current_row["ihc_val"]), float(st.session_state.perc_pos_th)
