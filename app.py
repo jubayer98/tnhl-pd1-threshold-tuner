@@ -720,6 +720,10 @@ st.markdown(
             <span class="stat-chip-label">Pathology Diagnosis</span>
             <span class="stat-chip-val">{diagnosis} <span class="stat-chip-sub">({subtype})</span></span>
         </div>
+        <div class="stat-chip stat-chip-tneo">
+            <span class="stat-chip-label">Tneo Definition</span>
+            <span class="stat-chip-val" style="color: #6366F1;">{tneo_def}</span>
+        </div>
         <div class="stat-chip stat-chip-cells">
             <span class="stat-chip-label">Total Segmented Cells</span>
             <span class="stat-chip-val" style="color: #10B981;">{total_cells:,}</span>
@@ -732,7 +736,7 @@ st.markdown(
 m_c1, m_c2, m_c3, m_c4 = st.columns(4)
 with m_c1:
     tneo_annot = (
-        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo Core %: <b style="color: #6366F1;">{tneo_str}</b> ({tneo_cells:,} cells) <span style="opacity: 0.85;">[{tneo_def}]</span></span>'
+        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo Core: <b style="color: #6366F1;">{tneo_str}</b> ({tneo_cells:,} cells)</span>'
         if tneo_str != "N/A" and tneo_str != "0.0%"
         else '<span class="metric-card-sub">Pathology estimate</span>'
     )
