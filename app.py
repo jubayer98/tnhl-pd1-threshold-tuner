@@ -184,7 +184,6 @@ st.markdown(
     div[data-testid="stPlotlyChart"] text.ytitle {
         fill: #0F172A !important;
         color: #0F172A !important;
-        font-weight: 600 !important;
     }
 
     .stPlotlyChart .xgrid,
@@ -757,7 +756,7 @@ fig_curve.add_trace(
         x=sweep_ths,
         y=sweep_pcts,
         mode="lines",
-        name="Positive Cells (%)",
+        name="Positive Cells (%)\u00A0\u00A0\u00A0\u00A0",
         line=dict(color=curve_color, width=2.5),
     )
 )
@@ -769,7 +768,7 @@ if ukd_abs is not None:
             x=[None],
             y=[None],
             mode="lines",
-            name=f"UKD ({ukd_abs:.1f})",
+            name=f"UKD ({ukd_abs:.1f})\u00A0\u00A0\u00A0\u00A0",
             line=dict(color=c_ukd, dash="dash", width=2),
         )
     )
@@ -779,7 +778,7 @@ if kei_abs is not None:
             x=[None],
             y=[None],
             mode="lines",
-            name=f"Keisuke ({kei_abs:.1f})",
+            name=f"Keisuke ({kei_abs:.1f})\u00A0\u00A0\u00A0\u00A0",
             line=dict(color=c_kei, dash="dash", width=2),
         )
     )
@@ -788,7 +787,7 @@ fig_curve.add_trace(
         x=[None],
         y=[None],
         mode="lines",
-        name=f"Custom ({custom_abs:.1f})",
+        name=f"Custom ({custom_abs:.1f})\u00A0\u00A0\u00A0\u00A0",
         line=dict(color=c_custom, width=3),
     )
 )
@@ -905,10 +904,12 @@ fig_curve.update_layout(
     legend=dict(
         orientation="h",
         yanchor="bottom",
-        y=1.02,
+        y=1.04,
         xanchor="center",
         x=0.5,
         font=dict(color=legend_col, size=11),
+        itemclick=False,
+        itemdoubleclick=False,
     ),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
