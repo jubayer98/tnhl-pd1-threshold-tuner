@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import gc
 import io
 import os
 from pathlib import Path
@@ -232,14 +233,14 @@ def get_cohort_dataframe() -> pd.DataFrame:
     return S3DataManager.merge_curations(df_base, curations_dict)
 
 
-@st.cache_resource(show_spinner=False, max_entries=8)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def get_core_bundle(core_id: str) -> CoreBundle:
     dm = get_data_manager()
     return dm.load_core_bundle(core_id)
 
 
 # Caches the static response curve per core (vectorized, <1ms)
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def get_cached_response_curve(core_id: str, perc_pos_th: float, max_val: float):
     bundle = get_core_bundle(core_id)
     if abs(perc_pos_th - 0.5) < 1e-4 and len(bundle.sorted_crit_p50) > 0:
@@ -253,7 +254,7 @@ def get_cached_response_curve(core_id: str, perc_pos_th: float, max_val: float):
 
 
 # Caches the static panels (Raw, UKD, Keisuke) and base64 URIs per core
-@st.cache_resource(show_spinner=False, max_entries=8)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def get_cached_static_images(
     core_id: str,
     ukd_abs: Optional[float],
@@ -371,6 +372,7 @@ if st.session_state.current_core_id != st.session_state.last_core_id:
     st.session_state.last_core_id = st.session_state.current_core_id
     note_key = f"notes_{st.session_state.current_core_id}"
     st.session_state[note_key] = ""
+    gc.collect()
     m_row = df_cohort[df_cohort["core_id"] == st.session_state.current_core_id]
     if not m_row.empty:
         cr = m_row.iloc[0]
@@ -412,6 +414,7 @@ if st.session_state.get("pending_accept"):
             st.session_state.save_feedback = ("error", f"Error saving decision: {exc}")
         finally:
             st.session_state.is_saving = False
+            gc.collect()
     st.rerun()
 
 # ------------------------------------------------------------------------------
