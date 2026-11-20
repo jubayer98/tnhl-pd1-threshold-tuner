@@ -218,7 +218,7 @@ def get_data_manager() -> S3DataManager:
     return S3DataManager(cfg)
 
 
-@st.cache_data(show_spinner="Loading cohort metadata from cloud storage...")
+@st.cache_data(ttl=10, show_spinner="Loading cohort metadata from cloud storage...")
 def get_base_cohort_dataframe() -> pd.DataFrame:
     dm = get_data_manager()
     return dm.load_raw_cohort_metadata()
@@ -232,8 +232,16 @@ def get_curations_dict() -> Dict[str, Dict[str, Any]]:
 
 def get_cohort_dataframe() -> pd.DataFrame:
     df_base = get_base_cohort_dataframe()
+    if "tneo_pd1_str" not in df_base.columns or df_base["tneo_pd1_str"].isna().all():
+        get_base_cohort_dataframe.clear()
+        df_base = get_base_cohort_dataframe()
     curations_dict = get_curations_dict()
-    return S3DataManager.merge_curations(df_base, curations_dict)
+    df = S3DataManager.merge_curations(df_base, curations_dict)
+    if "tneo_def" in df.columns:
+        df["tneo_def"] = df["tneo_def"].fillna("N/A").astype(str)
+    if "tneo_pd1_str" in df.columns:
+        df["tneo_pd1_str"] = df["tneo_pd1_str"].fillna("N/A").astype(str)
+    return df
 
 
 @st.cache_resource(show_spinner=False, max_entries=1)
@@ -713,10 +721,6 @@ st.markdown(
             <span class="stat-chip-label">Pathology Diagnosis</span>
             <span class="stat-chip-val">{diagnosis} <span class="stat-chip-sub">({subtype})</span></span>
         </div>
-        <div class="stat-chip stat-chip-tneo">
-            <span class="stat-chip-label">Neoplastic Phenotype</span>
-            <span class="stat-chip-val" style="color: #6366F1;">{tneo_def}</span>
-        </div>
         <div class="stat-chip stat-chip-cells">
             <span class="stat-chip-label">Total Segmented Cells</span>
             <span class="stat-chip-val" style="color: #10B981;">{total_cells:,}</span>
@@ -726,38 +730,36 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-m_c1, m_c2, m_c3, m_c4, m_c5 = st.columns(5)
+m_c1, m_c2, m_c3, m_c4 = st.columns(4)
 with m_c1:
+    tneo_annot = (
+        f'<span class="metric-card-sub" style="margin-top: 4px; display: block;">CODEX Tneo: <b style="color: #6366F1;">{tneo_pd1_str}</b> <span style="opacity: 0.85;">({tneo_def})</span></span>'
+        if tneo_pd1_str != "N/A"
+        else '<span class="metric-card-sub">Pathology estimate</span>'
+    )
     st.markdown(
         f'<div class="metric-card"><div class="metric-card-title"><b>Clinical IHC PD-1</b></div>'
         f'<h2 style="color: var(--text-color); margin: 2px 0;">{ihc_str}</h2>'
-        f'<span class="metric-card-sub">Pathology estimate</span></div>',
+        f'{tneo_annot}</div>',
         unsafe_allow_html=True,
     )
 with m_c2:
-    st.markdown(
-        f'<div class="metric-card"><div class="metric-card-title"><b>Pipeline Tneo PD-1</b></div>'
-        f'<h2 style="color: #6366F1; margin: 2px 0;">{tneo_pd1_str}</h2>'
-        f'<span class="metric-card-sub">Neoplastic T cells</span></div>',
-        unsafe_allow_html=True,
-    )
-with m_c3:
     ukd_label = f"abs_th={ukd_abs:.1f}" if ukd_abs is not None else "N/A"
     st.markdown(
-        f'<div class="metric-card"><div class="metric-card-title"><b>UKD Whole-Core (<span class="badge-cyan">Cyan</span>)</b></div>'
+        f'<div class="metric-card"><div class="metric-card-title"><b>UKD Pipeline (<span class="badge-cyan">Cyan</span>)</b></div>'
         f'<h2 style="color:#00B4D8; margin: 2px 0;">{pct_ukd:.1f}%</h2>'
         f'<span class="metric-card-sub">{n_ukd:,} cells ({ukd_label})</span></div>',
         unsafe_allow_html=True,
     )
-with m_c4:
+with m_c3:
     kei_label = f"abs_th={kei_abs:.1f}" if kei_abs is not None else "N/A"
     st.markdown(
-        f'<div class="metric-card"><div class="metric-card-title"><b>Keisuke Whole-Core (<span class="badge-gold">Gold</span>)</b></div>'
+        f'<div class="metric-card"><div class="metric-card-title"><b>Keisuke Reviewer (<span class="badge-gold">Gold</span>)</b></div>'
         f'<h2 style="color:#D97706; margin: 2px 0;">{pct_kei:.1f}%</h2>'
         f'<span class="metric-card-sub">{n_kei:,} cells ({kei_label})</span></div>',
         unsafe_allow_html=True,
     )
-with m_c5:
+with m_c4:
     st.markdown(
         f'<div class="metric-card"><div class="metric-card-title"><b>Interactive Custom (<span class="badge-green">Lime</span>)</b></div>'
         f'<h2 style="color:#10B981; margin: 2px 0;">{pct_custom:.1f}%</h2>'
@@ -1014,16 +1016,6 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
             line=dict(color=c_ihc, dash="dot", width=2),
         )
     )
-if tneo_pd1_pct is not None:
-    fig_curve.add_trace(
-        go.Scatter(
-            x=[None],
-            y=[None],
-            mode="lines",
-            name=f"Pipeline Tneo ({tneo_pd1_pct:.1f}%)",
-            line=dict(color=c_tneo, dash="dashdot", width=2),
-        )
-    )
 
 # Staggered vertical markers with non-overlapping pill badges
 # Level 1 (y=88): Keisuke (Amber Gold)
@@ -1099,26 +1091,6 @@ if current_row["is_valid_ihc"] and current_row["ihc_val"] is not None:
         font=dict(color=c_ihc, size=11),
         bgcolor=bg_ihc,
         bordercolor=c_ihc,
-        borderwidth=1.5,
-        borderpad=6,
-    )
-
-# Pipeline Tneo PD-1 Reference (Indigo)
-if tneo_pd1_pct is not None:
-    fig_curve.add_hline(y=tneo_pd1_pct, line=dict(color=c_tneo, dash="dashdot", width=2))
-    yanc_tneo = "bottom" if tneo_pd1_pct < 85 else "top"
-    fig_curve.add_annotation(
-        x=45,
-        y=tneo_pd1_pct,
-        text=f"<b>Pipeline Tneo ({tneo_pd1_pct:.1f}%)</b>",
-        showarrow=False,
-        xanchor="left",
-        yanchor=yanc_tneo,
-        width=170,
-        align="center",
-        font=dict(color=c_tneo, size=11),
-        bgcolor=bg_tneo,
-        bordercolor=c_tneo,
         borderwidth=1.5,
         borderpad=6,
     )
