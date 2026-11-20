@@ -393,31 +393,43 @@ with st.sidebar:
         cur_icon = "✅" if row["cur_decision"] != "Unreviewed" else "⏳"
         return f"{cur_icon} {cid} | IHC: {row['ihc_str']} | {row['diagnosis']}"
 
-    selected_core = st.selectbox(
+    def on_core_dropdown_change():
+        new_cid = st.session_state.selected_core_dropdown
+        st.session_state.current_core_id = new_cid
+        st.session_state[f"notes_{new_cid}"] = ""
+
+    # Keep dropdown widget state synchronized with current_core_id
+    if "selected_core_dropdown" not in st.session_state or st.session_state.selected_core_dropdown != st.session_state.current_core_id:
+        st.session_state.selected_core_dropdown = st.session_state.current_core_id
+
+    st.selectbox(
         "Select Core:",
         options=core_list,
-        index=current_idx,
         format_func=format_core_label,
+        key="selected_core_dropdown",
+        on_change=on_core_dropdown_change,
     )
-    if selected_core != st.session_state.current_core_id:
-        st.session_state.current_core_id = selected_core
-        st.session_state[f"notes_{selected_core}"] = ""
-        st.rerun()
 
-    # Prev / Next navigation
-    col_prev, col_next = st.columns(2)
-    with col_prev:
-        if st.button("⬅ Prev", disabled=current_idx == 0):
+    # Prev / Next navigation via on_click callbacks (zero ghosting / flicker)
+    def go_prev_core():
+        if current_idx > 0:
             prev_id = core_list[current_idx - 1]
             st.session_state.current_core_id = prev_id
+            st.session_state.selected_core_dropdown = prev_id
             st.session_state[f"notes_{prev_id}"] = ""
-            st.rerun()
-    with col_next:
-        if st.button("Next ➡", disabled=current_idx >= len(core_list) - 1):
+
+    def go_next_core():
+        if current_idx < len(core_list) - 1:
             next_id = core_list[current_idx + 1]
             st.session_state.current_core_id = next_id
+            st.session_state.selected_core_dropdown = next_id
             st.session_state[f"notes_{next_id}"] = ""
-            st.rerun()
+
+    col_prev, col_next = st.columns(2)
+    with col_prev:
+        st.button("⬅ Prev", disabled=current_idx == 0, on_click=go_prev_core)
+    with col_next:
+        st.button("Next ➡", disabled=current_idx >= len(core_list) - 1, on_click=go_next_core)
 
     st.markdown("---")
     st.subheader("🎚️ Threshold Controls")
@@ -964,10 +976,24 @@ with st.container():
             notes=review_notes,
         )
 
+        # Clear cached cohort dataframe so new curation is merged immediately
+        get_cohort_dataframe.clear()
+
+        # Cache the feedback message across rerun
         if final_abs is not None:
-            st.success(f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
+            st.session_state.save_feedback = ("success", f"Saved decision for Core **{core_id}**! Final threshold: **{final_abs:.1f}**")
         else:
-            st.warning(f"Core **{core_id}** flagged as Excluded.")
+            st.session_state.save_feedback = ("warning", f"Core **{core_id}** flagged as Excluded.")
+
+        st.rerun()
+
+    # Display feedback message if present
+    if "save_feedback" in st.session_state:
+        msg_type, msg_text = st.session_state.pop("save_feedback")
+        if msg_type == "success":
+            st.success(msg_text)
+        else:
+            st.warning(msg_text)
 
 # ------------------------------------------------------------------------------
 # Curated Progress Table
