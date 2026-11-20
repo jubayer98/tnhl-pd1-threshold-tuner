@@ -70,7 +70,11 @@ class CoreBundle:
     def __init__(self, core_id: str, npz_data: Any):
         self.core_id = core_id
 
-        self.raw_pd1 = npz_data["raw_pd1"].astype(np.float32)
+        raw_arr = npz_data["raw_pd1"]
+        if np.issubdtype(raw_arr.dtype, np.floating) and raw_arr.max() <= 255.0:
+            self.raw_pd1 = raw_arr.astype(np.uint8)
+        else:
+            self.raw_pd1 = raw_arr
         self.seg = npz_data["seg"].astype(np.int32)
         self.cell_ids = npz_data["cell_ids"].astype(np.int64)
         self.total_cells = len(self.cell_ids)
@@ -94,12 +98,8 @@ class CoreBundle:
         self.raw_flat = self.raw_pd1.ravel()
 
         # Cache normalized raw image
-        raw_norm = normalize_image(self.raw_pd1, pmin=3.0, pmax=99.8)
+        raw_norm = normalize_image(self.raw_pd1.astype(np.float32), pmin=3.0, pmax=99.8)
         self.raw_uint8 = (raw_norm * 255.0).astype(np.uint8)
-
-        # Cell ID lookup table
-        self.id_to_index = np.full(self.max_cell_id + 1, -1, dtype=np.int32)
-        self.id_to_index[self.cell_ids] = np.arange(self.total_cells, dtype=np.int32)
 
     def evaluate_threshold(self, abs_th: float, perc_pos_th: float = 0.5) -> Tuple[np.ndarray, int, float]:
         """Compute positive cells matching spatialproteomics (returns is_pos_mask, count, pct)."""
@@ -167,7 +167,7 @@ class CoreBundle:
             rgb = np.stack([gray, gray, gray], axis=-1)
             return Image.fromarray(rgb)
 
-        filtered = np.maximum(0.0, self.raw_pd1 - abs_th)
+        filtered = np.maximum(0.0, self.raw_pd1.astype(np.float32) - abs_th)
         norm_filt = normalize_image(filtered, pmin=3.0, pmax=99.8)
         gray = (norm_filt * 255.0).astype(np.uint8)
         out_rgb = np.stack([gray, gray, gray], axis=-1)
