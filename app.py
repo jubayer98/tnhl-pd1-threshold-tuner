@@ -310,7 +310,7 @@ def show_fullscreen_modal(pil_image: Image.Image, panel_title: str, subtitle: st
     st.markdown(f"### {panel_title}")
     if subtitle:
         st.caption(subtitle)
-    st.image(pil_image, use_container_width=True)
+    st.image(pil_image, width="stretch")
     buf = io.BytesIO()
     pil_image.save(buf, format="PNG")
     st.download_button(
@@ -460,90 +460,92 @@ with st.sidebar:
     current_row = df_cohort[df_cohort["core_id"] == st.session_state.current_core_id].iloc[0]
     bundle = get_core_bundle(current_row["core_id"])
     cid_to_save = str(current_row["core_id"]).strip()
+    next_core_id = core_list[current_idx + 1] if current_idx < len(core_list) - 1 else None
 
-    def advance_to_next_core() -> Optional[str]:
-        if current_idx < len(core_list) - 1:
-            next_id = core_list[current_idx + 1]
-            st.session_state.current_core_id = next_id
-            st.session_state.selected_core_dropdown = next_id
-            st.session_state[f"notes_{next_id}"] = ""
-            return next_id
-        return None
+    def on_accept_ukd(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
+        dm_inst = get_data_manager()
+        dm_inst.save_curation_decision(
+            core_id=cid,
+            decision_type="Accept UKD",
+            abs_th=th,
+            perc_pos_th=perc,
+            notes=note,
+        )
+        get_curations_dict.clear()
+        st.session_state.custom_abs_th = th
+        if next_cid:
+            st.session_state.current_core_id = next_cid
+            st.session_state.selected_core_dropdown = next_cid
+            st.session_state[f"notes_{next_cid}"] = ""
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved UKD decision for Core **{cid}** (cutoff: **{th:.1f}**)! Loaded Core **{next_cid}**.",
+            )
+        else:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved UKD decision for Core **{cid}** (cutoff: **{th:.1f}**)! All cores in current filter completed! 🎉",
+            )
+
+    def on_accept_keisuke(cid: str, th: float, perc: float, note: str, next_cid: Optional[str]):
+        dm_inst = get_data_manager()
+        dm_inst.save_curation_decision(
+            core_id=cid,
+            decision_type="Accept Keisuke",
+            abs_th=th,
+            perc_pos_th=perc,
+            notes=note,
+        )
+        get_curations_dict.clear()
+        st.session_state.custom_abs_th = th
+        if next_cid:
+            st.session_state.current_core_id = next_cid
+            st.session_state.selected_core_dropdown = next_cid
+            st.session_state[f"notes_{next_cid}"] = ""
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved Keisuke decision for Core **{cid}** (cutoff: **{th:.1f}**)! Loaded Core **{next_cid}**.",
+            )
+        else:
+            st.session_state.save_feedback = (
+                "success",
+                f"Saved Keisuke decision for Core **{cid}** (cutoff: **{th:.1f}**)! All cores in current filter completed! 🎉",
+            )
 
     # Quick Presets: One option per line
     st.write("**Quick Presets (1-Click Accept):**")
 
     ukd_lbl = f"{current_row['our_abs_th']:.1f}" if pd.notna(current_row["our_abs_th"]) else "N/A"
     has_ukd = pd.notna(current_row["our_abs_th"])
-    if st.button(
+    st.button(
         f"Accept UKD ({ukd_lbl}) ➡",
         disabled=not has_ukd,
+        on_click=on_accept_ukd,
+        args=(
+            cid_to_save,
+            float(current_row["our_abs_th"]) if has_ukd else 0.0,
+            float(st.session_state.perc_pos_th),
+            st.session_state.get(f"notes_{cid_to_save}", ""),
+            next_core_id,
+        ),
         help="One-click workflow: Apply UKD threshold, save decision to cloud, and advance to next core",
-    ):
-        th_val = float(current_row["our_abs_th"])
-        st.session_state.custom_abs_th = th_val
-
-        # 1. Save directly to cloud and verify completion
-        dm.save_curation_decision(
-            core_id=cid_to_save,
-            decision_type="Accept UKD",
-            abs_th=th_val,
-            perc_pos_th=float(st.session_state.perc_pos_th),
-            notes=st.session_state.get(f"notes_{cid_to_save}", ""),
-        )
-
-        # 2. Invalidate curations cache so the decision is immediately merged
-        get_curations_dict.clear()
-
-        # 3. Advance to next core
-        next_core = advance_to_next_core()
-        if next_core:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved UKD decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! Loaded Core **{next_core}**.",
-            )
-        else:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved UKD decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! All cores in current filter completed! 🎉",
-            )
-        st.rerun()
+    )
 
     kei_lbl = f"{current_row['kei_abs_th']:.1f}" if pd.notna(current_row["kei_abs_th"]) else "N/A"
     has_kei = pd.notna(current_row["kei_abs_th"])
-    if st.button(
+    st.button(
         f"Accept Keisuke ({kei_lbl}) ➡",
         disabled=not has_kei,
+        on_click=on_accept_keisuke,
+        args=(
+            cid_to_save,
+            float(current_row["kei_abs_th"]) if has_kei else 0.0,
+            float(st.session_state.perc_pos_th),
+            st.session_state.get(f"notes_{cid_to_save}", ""),
+            next_core_id,
+        ),
         help="One-click workflow: Apply Keisuke threshold, save decision to cloud, and advance to next core",
-    ):
-        th_val = float(current_row["kei_abs_th"])
-        st.session_state.custom_abs_th = th_val
-
-        # 1. Save directly to cloud and verify completion
-        dm.save_curation_decision(
-            core_id=cid_to_save,
-            decision_type="Accept Keisuke",
-            abs_th=th_val,
-            perc_pos_th=float(st.session_state.perc_pos_th),
-            notes=st.session_state.get(f"notes_{cid_to_save}", ""),
-        )
-
-        # 2. Invalidate curations cache so the decision is immediately merged
-        get_curations_dict.clear()
-
-        # 3. Advance to next core
-        next_core = advance_to_next_core()
-        if next_core:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved Keisuke decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! Loaded Core **{next_core}**.",
-            )
-        else:
-            st.session_state.save_feedback = (
-                "success",
-                f"Saved Keisuke decision for Core **{cid_to_save}** (cutoff: **{th_val:.1f}**)! All cores in current filter completed! 🎉",
-            )
-        st.rerun()
+    )
 
     st.write("**Manual Review Presets:**")
 
@@ -698,7 +700,7 @@ with sync_hdr_col2:
     )
     st.session_state.nav_dragmode = "zoom" if "Zoom" in mode_selection else "pan"
 with sync_hdr_col3:
-    if st.button("↺ Reset View", use_container_width=True, help="Reset zoom back to full view"):
+    if st.button("↺ Reset View", width="stretch", help="Reset zoom back to full view"):
         st.session_state.zoom_reset_token = st.session_state.get("zoom_reset_token", 0) + 1
         st.rerun()
 
@@ -823,27 +825,27 @@ panel_config = {
     "doubleClick": "reset",
 }
 
-st.plotly_chart(fig_panels, use_container_width=True, config=panel_config)
+st.plotly_chart(fig_panels, width="stretch", config=panel_config)
 
 # Fullscreen modal inspection buttons below each corresponding panel
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 with col_m1:
-    if st.button("⛶ Fullscreen", key="modal_btn_raw", use_container_width=True):
+    if st.button("⛶ Fullscreen", key="modal_btn_raw", width="stretch"):
         show_fullscreen_modal(img_raw, "Panel 1: Raw PD-1 Staining", f'Core "{core_id}" | Clinical IHC: {ihc_str}')
 with col_m2:
     if img_ukd is not None:
-        if st.button("⛶ Fullscreen", key="modal_btn_ukd", use_container_width=True):
+        if st.button("⛶ Fullscreen", key="modal_btn_ukd", width="stretch"):
             show_fullscreen_modal(img_ukd, ukd_hdr, f"Cutoff: {ukd_abs} | Positive: {n_ukd:,} cells ({pct_ukd:.1f}%) [Cyan]")
     else:
-        st.button("⛶ Fullscreen", key="modal_btn_ukd_dis", use_container_width=True, disabled=True)
+        st.button("⛶ Fullscreen", key="modal_btn_ukd_dis", width="stretch", disabled=True)
 with col_m3:
     if img_kei is not None:
-        if st.button("⛶ Fullscreen", key="modal_btn_kei", use_container_width=True):
+        if st.button("⛶ Fullscreen", key="modal_btn_kei", width="stretch"):
             show_fullscreen_modal(img_kei, kei_hdr, f"Cutoff: {kei_abs} | Positive: {n_kei:,} cells ({pct_kei:.1f}%) [Gold]")
     else:
-        st.button("⛶ Fullscreen", key="modal_btn_kei_dis", use_container_width=True, disabled=True)
+        st.button("⛶ Fullscreen", key="modal_btn_kei_dis", width="stretch", disabled=True)
 with col_m4:
-    if st.button("⛶ Fullscreen", key="modal_btn_custom", use_container_width=True):
+    if st.button("⛶ Fullscreen", key="modal_btn_custom", width="stretch"):
         show_fullscreen_modal(img_custom, custom_hdr, f"Cutoff: {custom_abs:.1f} | Positive: {n_custom:,} cells ({pct_custom:.1f}%) [Lime Green]")
 
 # ------------------------------------------------------------------------------
@@ -1039,7 +1041,7 @@ fig_curve.update_layout(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
 )
-st.plotly_chart(fig_curve, use_container_width=True, config={"displayModeBar": False}, theme=None)
+st.plotly_chart(fig_curve, width="stretch", config={"displayModeBar": False}, theme=None)
 
 # ------------------------------------------------------------------------------
 # Reviewer Decision Card
@@ -1116,7 +1118,7 @@ if curations_dict:
         df_cur = df_cur.rename(columns={"index": "core_id"})
     with st.expander("📊 Review Progress & Saved Curations", expanded=False):
         st.write(f"Total Reviewed Cores: **{len(df_cur)} / {len(df_cohort)}**")
-        st.dataframe(df_cur, use_container_width=True)
+        st.dataframe(df_cur, width="stretch")
         csv_bytes = df_cur.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="📥 Download Curated CSV",
