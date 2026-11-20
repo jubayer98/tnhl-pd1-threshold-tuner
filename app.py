@@ -471,12 +471,12 @@ with st.sidebar:
         return None
 
     # Quick Presets: One option per line
-    st.write("**Quick Presets (1-Click Accept & Advance):**")
+    st.write("**Quick Presets (1-Click Accept):**")
 
     ukd_lbl = f"{current_row['our_abs_th']:.1f}" if pd.notna(current_row["our_abs_th"]) else "N/A"
     has_ukd = pd.notna(current_row["our_abs_th"])
     if st.button(
-        f"⚡ Accept UKD ({ukd_lbl}) & Next ➡",
+        f"Accept UKD ({ukd_lbl}) ➡",
         disabled=not has_ukd,
         help="One-click workflow: Apply UKD threshold, save decision to cloud, and advance to next core",
     ):
@@ -512,7 +512,7 @@ with st.sidebar:
     kei_lbl = f"{current_row['kei_abs_th']:.1f}" if pd.notna(current_row["kei_abs_th"]) else "N/A"
     has_kei = pd.notna(current_row["kei_abs_th"])
     if st.button(
-        f"⚡ Accept Keisuke ({kei_lbl}) & Next ➡",
+        f"Accept Keisuke ({kei_lbl}) ➡",
         disabled=not has_kei,
         help="One-click workflow: Apply Keisuke threshold, save decision to cloud, and advance to next core",
     ):
@@ -545,7 +545,7 @@ with st.sidebar:
             )
         st.rerun()
 
-    st.write("**Manual Review Presets (Apply Only):**")
+    st.write("**Manual Review Presets:**")
 
     if st.button("Use Midpoint (UKD / Keisuke)", help="Average of UKD and Keisuke cutoffs (applies cutoff for manual review without auto-saving)"):
         if pd.notna(current_row["our_abs_th"]) and pd.notna(current_row["kei_abs_th"]):
